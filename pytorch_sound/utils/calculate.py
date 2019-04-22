@@ -20,3 +20,15 @@ def norm_mel(x: np.array) -> np.array:
     # mel range
     mel_min, mel_max = db2log(CFG.MIN_DB), db2log(CFG.MAX_DB)
     return (x - mel_min) / (mel_max - mel_min) * 2 - 1
+
+
+def volume_norm_log(x, target_db=-11.5):
+    return x / (np.std(x) / 10 ** (target_db / 10))
+
+
+def volume_norm_log_torch(x, target_db=-11.5):
+    return x / (torch.std(x) / 10 ** (target_db / 10))
+
+
+def volume_norm_linear(x):
+    return x / (np.std(x) / 10 ** (-1.15))

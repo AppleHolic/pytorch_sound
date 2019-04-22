@@ -22,16 +22,11 @@ MIN_DB: int = -50  # minimum decibel
 MAX_DB: int = 30  # maximum decibel
 VN_DB: float = -11.5  # volume normalization target decibel
 MULAW_BINS: int = 256  # mu-law quantization bin counts
-HF_GAIN: float = 1.  # 생성된 mel 의 high frequency 보정값 ( 현재값 1.0 dB )
 
 
 # number of workers
 NUM_WORKERS: int = multiprocessing.cpu_count() // 2
 
-
-#
-# Vocabulary 관련 설정.
-#
 
 # vocabulary
 IDX_TO_ENG: List[str] = symbols

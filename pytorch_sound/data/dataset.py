@@ -1,14 +1,61 @@
 import numpy as np
 import torch
+import os
+from scipy.io.wavfile import read as wav_read
+from pytorch_sound.utils.text import eng_t2i
+from pytorch_sound.utils.tensor import fix_length
+from pytorch_sound.settings import DataType
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.dataloader import default_collate
 
 
 class SpeechDataset(Dataset):
 
-    def __init__(self):
-        # TODO: refactoring this
-        pass
+    def __init__(self, root_path: str, data_type: DataType, is_train: bool=False):
+        # args
+        self.data_type = data_type
+        self.is_train = is_train
+        self.sr = 0
+
+        # path setting
+        assert os.path.exists(root_path) and os.path.isdir(root_path), '{} is not valid path!'.format(root_path)
+
+        # TODO: re-build meta info, dataset
+
+    def __getitem__(self, idx):
+        return {
+            DataType.WAV: self.handle_wav,
+            DataType.ENG_WAV: self.handle_eng_wav,
+        }[self.data_type](idx)
+
+    def handle_wav(self, idx):
+        # vanilla wav
+        wav = self.load_wav(idx)
+        # random crop
+        fix_len = self.hparam.get('fix_len', 0)
+        if fix_len:
+            sidx = np.random.randint(0, max(1, len(wav) - fix_len + 1))
+            wav = fix_length(wav[sidx:], fix_len)
+        return [wav]
+
+    def handle_eng_wav(self, idx):
+        wav = self.load_wav(idx)
+        script = self.load_eng(idx)
+        return script, wav, int(self.meta_info[idx][0])
+
+    def load_wav(self, idx):
+        wav_path = self.get_path(idx, 'wav')
+        sr, wav = wav_read(wav_path)
+        # TOOD: sample rate rebuild
+        return wav
+
+    def load_eng(self, idx):
+        with open(self.get_path(idx, 'txt'), 'r', encoding='utf-8') as f:
+            ixs = eng_t2i(f.read())
+        return ixs
+
+    def __len__(self):
+        return len(self.meta_info)
 
 
 class SpeechDataLoader(DataLoader):

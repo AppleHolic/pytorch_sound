@@ -3,18 +3,17 @@ import glob
 import os
 import pathlib
 import time
+import torch.nn as nn
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import enum
+from typing import Dict
 from collections import defaultdict
 from tensorboardX import SummaryWriter
-from torch.autograd import Variable
 from pytorch_sound.data.dataset import SpeechDataLoader, SpeechDataset
 from pytorch_sound.utils.settings import CFG, get_save_name
 from pytorch_sound.utils.tensor import to_device, to_numpy
-from pytorch_sound.utils.text import kor_i2t
-from pytorch_sound.utils.settings import get_hparam, get_model
 
 
 # switch matplotlib backend
@@ -26,27 +25,24 @@ LogType = enum.Enum('LogType', 'SCALAR IMAGE KOR ENG AUDIO PLOT')
 
 class Trainer:
 
-    def __init__(self, rank: int, project_path: str, task_type: str, setting_name: str = '', pretrained_path: str = None):
+    def __init__(self, project_path: str, task_type: str, hparam: Dict, model: nn.Module, pretrained_path: str = None):
 
         # save project info
-        self.rank = rank
         self.project_path = project_path
         self.task_type = task_type
         self.pretrained_trained = pretrained_path
-        self.setting_name = setting_name
 
         # set seed
-        seed = np.random.randint(2**16)
+        seed = np.random.randint(np.iinfo(np.int32).max)
         np.random.seed(seed)
         torch.manual_seed(seed)
         torch.cuda.manual_seed(seed)
 
         # load hyper params
-        hparam = get_hparam(self.task_type, setting_name=setting_name)
         self.hparam = hparam
 
         # model
-        self.model = get_model(self.task_type, setting_name=setting_name, pretrained_path=pretrained_path)
+        self.model = model
 
         # logging
         n_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
@@ -59,7 +55,8 @@ class Trainer:
 
         # dataset
         def data_loader_func(is_train):
-            dataset = SpeechDataset(rank, project_path, task_type, setting_name, is_train=is_train)
+            dataset = None
+            # TODO: Dataset Rebuilding
             return SpeechDataLoader(dataset, hparam['batch_size'],
                                     hparam['num_workers'], is_bucket=hparam['is_bucket'])
 
@@ -292,8 +289,6 @@ class Trainer:
         for key, (value, log_type) in meta.items():
             if log_type == LogType.IMAGE:
                 self.writer.add_image('{}/{}'.format(tag, key), self.imshow_to_buf(to_numpy(value)), global_step=step)
-            elif log_type == LogType.KOR:
-                self.writer.add_text('{}/{}'.format(tag, key), kor_i2t(to_numpy(value)), global_step=step)
             elif log_type == LogType.AUDIO:
                 self.writer.add_audio('{}/{}'.format(tag, key), to_numpy(value), global_step=step,
                                         sample_rate=CFG.SAMPLE_RATE)
@@ -301,10 +296,6 @@ class Trainer:
                 self.writer.add_scalar('{}/{}'.format(tag, key), value, global_step=step)
             elif log_type == LogType.PLOT:
                 self.writer.add_image('{}/{}'.format(tag, key), self.plot_to_buf(to_numpy(value)), global_step=step)
-
-    def tprint(self, msg):
-        if self.rank <= 0:
-            print('[{}] {}'.format(time.strftime('%Y%m%d %H:%M:%S'), msg))
 
     @staticmethod
     def repeat(iterable):
@@ -335,85 +326,3 @@ class Trainer:
         plt.clf()
         plt.close('all')
         return np.rollaxis(im[..., :3], 2)
-
-    @staticmethod
-    def apply_gradient_allreduce(module):
-        # based on :
-        # https://github.com/NVIDIA/waveglow/blob/master/distributed.py
-
-        #
-        # inner functions
-        #
-        def flatten_tensors(tensors):
-            return torch.cat([t.contiguous().view(-1) for t in tensors], dim=0)
-
-        def unflatten_tensors(flat, tensors):
-            offset, res = 0, list()
-            for tensor in tensors:
-                numel = tensor.numel()
-                res.append(flat.narrow(0, offset, numel).view_as(tensor))
-                offset += numel
-            return tuple(res)
-
-        def bucketing(tensors):
-            buckets = {}
-            for tensor in tensors:
-                tp = tensor.dtype  # bucket by type
-                if tp not in buckets:
-                    buckets[tp] = []
-                buckets[tp].append(tensor)
-            return buckets
-
-        def sync_buckets(buckets):
-            for tp in buckets:
-                buffers = [buf for buf in buckets[tp]]
-                coalesced = flatten_tensors(buffers)
-                torch.distributed.all_reduce(coalesced)
-                coalesced /= torch.distributed.get_world_size()
-                for buf, synced in zip(buffers, unflatten_tensors(coalesced, buffers)):
-                    buf.copy_(synced)
-
-        def all_reduce_grads():
-            if module.needs_reduction:
-                module.needs_reduction = False
-                # bucketing for efficiency
-                buckets = bucketing([param.grad.data for param in module.parameters()
-                                     if param.requires_grad and param.grad is not None])
-                # sync gradients
-                sync_buckets(buckets)
-
-        def all_reduce_buffers():
-            # bucketing for efficiency
-            buckets = bucketing([buf.data for buf in module.buffers()])
-            # gradients sync
-            sync_buckets(buckets)
-
-        def grad_hook(*unused):
-            Variable._execution_engine.queue_callback(all_reduce_grads)
-
-        def forward_hook(self, input, output):
-            # set flag
-            self.needs_reduction = True
-            # sync buffers(for BN like modules)
-            all_reduce_buffers()
-
-        #
-        # sync initial parameters
-        #
-        for p in module.state_dict().values():
-            if torch.is_tensor(p):
-                torch.distributed.broadcast(p, 0)
-
-        #
-        # register grad hook
-        #
-        for param in list(module.parameters()):
-            if param.requires_grad:
-                param.register_hook(grad_hook)
-
-        #
-        # register forward hook
-        #
-        module.register_forward_hook(forward_hook)
-
-        return module

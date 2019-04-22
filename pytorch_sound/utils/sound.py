@@ -1,7 +1,5 @@
 import struct
 import librosa
-import torch
-import numpy as np
 
 
 def get_f0(x, hop_length, sr):
@@ -10,18 +8,6 @@ def get_f0(x, hop_length, sr):
     _f0, t = pyworld.dio(x, sr, frame_period=hop_length / sr * 1e+3)  # raw pitch extractor
     f0 = pyworld.stonemask(x, _f0, t, sr)  # pitch refinement
     return f0
-
-
-def volume_norm_log(x, target_db=-11.5):
-    return x / (np.std(x) / 10 ** (target_db / 10))
-
-
-def volume_norm_log_torch(x, target_db=-11.5):
-    return x / (torch.std(x) / 10 ** (target_db / 10))
-
-
-def volume_norm_linear(x):
-    return x / (np.std(x) / 10 ** (-1.15))
 
 
 # based on https://blog.theroyweb.com/extracting-wav-file-header-information-using-a-python-script
