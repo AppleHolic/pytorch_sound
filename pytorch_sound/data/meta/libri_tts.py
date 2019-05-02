@@ -30,9 +30,9 @@ def preprocess_text(args) -> Tuple:
             _pass = min_ratio <= txt_dur / float(dur) <= min_ratio
 
     except:
-        txt, _pass = '', -1, False
+        txt, _pass = '', False
 
-    return txt, _pass
+    return [txt, _pass]
 
 
 def get_wav_duration(file_path: str) -> int:
@@ -44,7 +44,7 @@ def get_wav_duration(file_path: str) -> int:
 
 class LibriTTSMeta(MetaFrame):
 
-    def __init__(self, meta_path: str, min_wav_rate: float = 0.0, max_wav_rate: float = 0.0,
+    def __init__(self, meta_path: str = '', min_wav_rate: float = 0.0, max_wav_rate: float = 0.0,
                  min_txt_rate: float = 0.0):
         self.meta_path = meta_path
         if os.path.exists(self.meta_path):
@@ -58,7 +58,7 @@ class LibriTTSMeta(MetaFrame):
 
     @property
     def columns(self):
-        return [MetaType.file_path, MetaType.speaker, MetaType.duration, MetaType.text]
+        return [MetaType.audio_filename, MetaType.speaker, MetaType.duration, MetaType.text]
 
     @property
     def meta(self) -> pd.DataFrame:
@@ -83,7 +83,8 @@ class LibriTTSMeta(MetaFrame):
 
     def process_txt(self, txt_file_list: List[str], dur_list: List[float]):
         # do txt process
-        results = go_multiprocess(preprocess_text, list(zip(txt_file_list, dur_list)))
+        results = go_multiprocess(preprocess_text, list(zip(txt_file_list,
+                                                            repeat(self.min_txt_rate, len(txt_file_list)), dur_list)))
         # split lists
         txt_list, pass_list = map(list, zip(*results))
         self._meta['pass'] = [p1 and p2 for p1, p2 in zip(self._meta['pass'], pass_list)]
@@ -99,7 +100,7 @@ class LibriTTSMeta(MetaFrame):
         train_frame.to_json(file_paths[1])
         val_frame.to_json(file_paths[2])
 
-    def make_meta(self, root_dir: str, meta_path: str):
+    def make_meta(self, root_dir):
         # speakers
         print('list up speakers')
         speakers = os.listdir(root_dir)
@@ -111,7 +112,7 @@ class LibriTTSMeta(MetaFrame):
         for speaker in tqdm(speakers):
             file_temp = glob.glob(os.path.join(root_dir, speaker, 'wav', '*.wav'))
             wav_file_list.extend(file_temp)
-            speaker_mult.extend(repeat(speaker, len(file_temp)))
+            speaker_mult.extend(list(repeat(speaker, len(file_temp))))
 
         print('Update meta infos')
         # update infos
@@ -121,7 +122,7 @@ class LibriTTSMeta(MetaFrame):
 
         # read duration
         print('Check durations on wave files ...')
-        dur_list = self.process_duration(wav_file_list)
+        dur_list = self.process_duration(wav_file_list, self.min_wav_rate, self.max_wav_rate)
 
         # text process
         print('Text pre-process ... ')
@@ -133,5 +134,14 @@ class LibriTTSMeta(MetaFrame):
         train_meta, val_meta = split_train_val_frame(self._meta)
 
         # save data frames
-        print('Save meta frames on %s'.format(' '.join(self.frame_file_names)))
-        self.save_meta(self._meta, train_meta, val_meta)
+        print('Save meta frames on {}'.format(' '.join(self.frame_file_names)))
+        self.save_meta(self.meta_path, self._meta, train_meta, val_meta)
+
+
+if __name__ == '__main__':
+    import sys
+    args = sys.argv[1:]
+    root_dir, meta_path = args[:2]
+    min_wav_rate, max_wav_rate, min_txt_rate = list(map(float, args[2:]))
+    meta = LibriTTSMeta(meta_path, min_wav_rate, max_wav_rate, min_txt_rate)
+    meta.make_meta(root_dir)

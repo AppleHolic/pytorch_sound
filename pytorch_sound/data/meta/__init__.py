@@ -7,7 +7,7 @@ from pandas import DataFrame
 from typing import List
 
 
-MetaType = enum.Enum('MetaType', 'file_path speaker duration text')
+MetaType = enum.Enum('MetaType', 'audio_filename midi_filename speaker duration text')
 
 
 class MetaFrame:
