@@ -25,7 +25,7 @@ class MaestroMeta(MetaFrame):
 
     @property
     def columns(self):
-        return [MetaType.audio_path, MetaType.midi_path, MetaType.duration]
+        return [MetaType.audio_filename, MetaType.midi_filename, MetaType.duration]
 
     @property
     def meta(self) -> pd.DataFrame:
@@ -34,6 +34,10 @@ class MaestroMeta(MetaFrame):
     @property
     def frame_file_names(self) -> List[str]:
         return ['maestro-v1.0.0.json', 'maestro-v1.0.0-train.json', 'maestro-v1.0.0-valid.json']
+
+    @property
+    def sr(self) -> int:
+        return 44100
 
     def save_meta(self, meta_dir: str, all_frame: pd.DataFrame, train_frame: pd.DataFrame, val_frame: pd.DataFrame):
         # make names

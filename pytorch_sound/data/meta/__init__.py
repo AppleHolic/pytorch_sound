@@ -13,6 +13,11 @@ MetaType = enum.Enum('MetaType', 'audio_filename midi_filename speaker duration 
 class MetaFrame:
 
     @property
+    def process_columns(self):
+        fields = [MetaType.audio_filename, MetaType.midi_filename, MetaType.speaker, MetaType.text]
+        return [col for col in self.columns if col in fields]
+
+    @property
     @abc.abstractmethod
     def columns(self) -> List[MetaType]:
         raise NotImplementedError('You must define columns !')

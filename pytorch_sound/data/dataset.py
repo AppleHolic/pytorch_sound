@@ -1,21 +1,64 @@
 import numpy as np
 import torch
+from typing import List
+from pytorch_sound.utils.text import eng_t2i
+from pytorch_sound.utils.tensor import fix_length
+from scipy.io.wavfile import read as wav_read
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.dataloader import default_collate
-from pytorch_sound.data.meta import MetaFrame
+from pytorch_sound.data.meta import MetaFrame, MetaType
 
 
 class SpeechDataset(Dataset):
 
-    def __init__(self, meta_path: str, meta_frame: MetaFrame):
-        self.meta_path = meta_path
+    def __init__(self, meta_frame: MetaFrame, fix_len: int = 0):
+        """
+        :param meta_frame: Data Frame with dataset info
+        :param kwargs: attributes to load data
+        """
         self.meta_frame = meta_frame
+        self.fix_len = fix_len
 
-    def __getitem__(self, idx):
-        # TODO: build function with meta
-        raise NotImplementedError
+    def __getitem__(self, idx: int):
+        meta_item = self.meta_frame.iloc[idx]
+        return self.handle_fields(meta_item)
 
-    def __len__(self):
+    def handle_fields(self, meta_item) -> List:
+        results = []
+        for col in self.meta_frame.process_columns:
+            if col == MetaType.audio_filename:
+                item = self.load_audio(meta_item[col.value])
+            elif col == MetaType.midi_filename:
+                item = self.load_midi(meta_item[col.value])
+            elif col == MetaType.speaker:
+                item = int(meta_item[col.value])
+            elif col == MetaType.text:
+                item = self.load_txt(meta_item[col.value])
+            else:
+                raise NotImplementedError('{} is not implemented !'.format(col.value))
+            results.append(item)
+        return results
+
+    def load_audio(self, file_path: str) -> List[np.ndarray]:
+        sr, wav = wav_read(file_path)
+        assert sr == self.meta_frame.sr, \
+            'sample rate miss match.\n {}\t {} in {}'.format(self.meta_frame.sr, sr, file_path)
+        # random crop
+        if self.fix_len:
+            start_idx = np.random.randint(0, max(1, len(wav) - self.fix_len + 1))
+            wav = fix_length(wav[start_idx:], self.fix_len)
+        return [wav]
+
+    @staticmethod
+    def load_midi(file_path: str):
+        raise NotImplementedError('MIDI function is not implemented!')
+
+    @staticmethod
+    def load_txt(file_path: str) -> List[int]:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return eng_t2i(f.read())
+
+    def __len__(self) -> int:
         return len(self.meta_frame)
 
 

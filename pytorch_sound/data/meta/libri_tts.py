@@ -68,6 +68,10 @@ class LibriTTSMeta(MetaFrame):
     def frame_file_names(self) -> List[str]:
         return ['all_meta.json', 'train_meta.json', 'val_meta.json']
 
+    @property
+    def sr(self) -> int:
+        return 22050
+
     def process_duration(self, wav_file_list: List[str], min_wav_rate: float, max_wav_rate: float) -> List[float]:
         dur_list = go_multiprocess(get_wav_duration, wav_file_list)
         # check pass
