@@ -4,7 +4,7 @@ from pytorch_sound.data.eng_handler.symbols import symbols
 from typing import List, Dict
 
 
-DataType = enum.Enum('DataType', 'WAV KOR_WAV ENG_WAV WAV_WAV')
+DataType = enum.Enum('DataType', 'WAV ENG_WAV WAV_WAV')
 
 
 #

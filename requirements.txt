@@ -8,3 +8,4 @@ tensorboardX
 fire
 inflect==0.2.5
 Unidecode==1.0.22
+pandas
