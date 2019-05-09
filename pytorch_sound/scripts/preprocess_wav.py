@@ -90,7 +90,7 @@ class Processor:
         return in_wav_list, out_wav_list
 
     @staticmethod
-    def preprocess(in_dir: str, out_dir: str, out_sr: int=22050, target_db: float=11.5):
+    def preprocess(in_dir: str, out_dir: str, out_sr: int = 22050, target_db: float = 11.5):
         in_wav_list, out_wav_list = __class__.__preprocess_wave(in_dir, out_dir)
 
         # make args

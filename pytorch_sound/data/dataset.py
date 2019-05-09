@@ -1,6 +1,8 @@
 import numpy as np
 import torch
 from typing import List
+
+from pytorch_sound.utils.sound import parse_midi
 from pytorch_sound.utils.text import eng_t2i
 from pytorch_sound.utils.tensor import fix_length
 from scipy.io.wavfile import read as wav_read
@@ -50,8 +52,15 @@ class SpeechDataset(Dataset):
         return [wav]
 
     @staticmethod
-    def load_midi(file_path: str):
-        raise NotImplementedError('MIDI function is not implemented!')
+    def load_midi(file_path: str) -> List[np.ndarray]:
+        """
+        :param file_path: midi file path
+        :return: piano roll with default setting
+        """
+        # load midi file
+        mid = parse_midi(file_path)
+        # TODO: enhance preprocess midi info
+        return [mid.get_piano_roll()]
 
     @staticmethod
     def load_txt(file_path: str) -> List[int]:

@@ -1,11 +1,6 @@
-import enum
 import multiprocessing
 from pytorch_sound.data.eng_handler.symbols import symbols
 from typing import List, Dict
-
-
-DataType = enum.Enum('DataType', 'WAV ENG_WAV WAV_WAV')
-
 
 #
 # STFT parameters

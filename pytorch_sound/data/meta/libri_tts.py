@@ -10,7 +10,7 @@ from pytorch_sound.data.meta.commons import go_multiprocess, split_train_val_fra
 from pytorch_sound.utils.sound import get_wav_hdr
 
 
-def preprocess_text(args) -> Tuple:
+def preprocess_text(args) -> List:
 
     txt_file, min_ratio, dur = args
 

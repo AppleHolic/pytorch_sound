@@ -1,4 +1,5 @@
 import multiprocessing
+import time
 
 
 def go_multiprocess(worker_func, inputs):
@@ -10,12 +11,27 @@ def go_multiprocess(worker_func, inputs):
     res = []
     try:
         for i in range(0, len(inputs), cpu_count):
-            # chunk 로 나누기.
             start_idx, end_idx = i, i + cpu_count
-            # multi-processing 으로 worker 실행.
             res += pool.map(worker_func, inputs[start_idx:end_idx])
             print('{}/{}\t{}() processed.'.format(i + 1, len(inputs), worker_func.__name__))
     finally:
         pool.close()
 
     return res
+
+
+def tprint(msg):
+    print('[{}] {}'.format(time.strftime('%Y%m%d %H:%M:%S'), msg))
+
+
+def get_loadable_checkpoint(checkpoint):
+    """
+    If model is saved with DataParallel, checkpoint keys is started with 'module.' remove it and return new state dict
+    :param checkpoint:
+    :return: new checkpoint
+    """
+    new_checkpoint = {}
+    for key, val in checkpoint.items():
+        new_key = key.replace('module.', '')
+        new_checkpoint[new_key] = val
+    return new_checkpoint

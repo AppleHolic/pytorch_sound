@@ -1,5 +1,16 @@
 import struct
 import librosa
+import pretty_midi
+
+
+def parse_midi(path):
+    midi = None
+    try:
+        midi = pretty_midi.PrettyMIDI(path)
+        midi.remove_invalid_notes()
+    except Exception as e:
+        raise Exception(("%s\nerror readying midi file %s" % (e, path)))
+    return midi
 
 
 def get_f0(x, hop_length, sr):
