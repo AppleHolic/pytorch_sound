@@ -1,19 +1,80 @@
 import numpy as np
 import torch
+from scipy.io.wavfile import read as wav_read
+from typing import List
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.dataloader import default_collate
+from pytorch_sound.utils.sound import parse_midi
+from pytorch_sound.utils.text import eng_t2i
+from pytorch_sound.utils.tensor import fix_length
+from pytorch_sound.data.meta import MetaFrame, MetaType
 
 
 class SpeechDataset(Dataset):
 
-    def __init__(self):
-        # TODO: refactoring this
-        pass
+    def __init__(self, meta_frame: MetaFrame, fix_len: int = 0, skip_audio: bool = False):
+        """
+        :param meta_frame: Data Frame with dataset info
+        :param kwargs: attributes to load data
+        """
+        self.meta_frame = meta_frame
+        self.fix_len = fix_len
+        self.cols = self.meta_frame.process_columns
+        if skip_audio:
+            self.cols = [x for x in self.cols if x != MetaType.audio_filename.name]
+
+    def __getitem__(self, idx: int):
+        meta_item = self.meta_frame.iloc[idx]
+        return self.handle_fields(meta_item)
+
+    def handle_fields(self, meta_item) -> List:
+        results = []
+        for col in self.meta_frame.process_columns:
+            if col == MetaType.audio_filename.name:
+                item = self.load_audio(meta_item[col])
+            elif col == MetaType.midi_filename.name:
+                item = self.load_midi(meta_item[col])
+            elif col == MetaType.speaker.name:
+                item = int(meta_item[col])
+            elif col == MetaType.text.name:
+                item = self.load_txt(meta_item[col])
+            else:
+                raise NotImplementedError('{} is not implemented !'.format(col.value))
+            results.append(item)
+        return results
+
+    def load_audio(self, file_path: str) -> List[np.ndarray]:
+        sr, wav = wav_read(file_path)
+        assert sr == self.meta_frame.sr, \
+            'sample rate miss match.\n {}\t {} in {}'.format(self.meta_frame.sr, sr, file_path)
+        # random crop
+        if self.fix_len:
+            start_idx = np.random.randint(0, max(1, len(wav) - self.fix_len + 1))
+            wav = fix_length(wav[start_idx:], self.fix_len)
+        return [wav]
+
+    @staticmethod
+    def load_midi(file_path: str) -> List[np.ndarray]:
+        """
+        :param file_path: midi file path
+        :return: piano roll with default setting
+        """
+        # load midi file
+        mid = parse_midi(file_path)
+        # TODO: enhance preprocess midi info
+        return [mid.get_piano_roll()]
+
+    @staticmethod
+    def load_txt(txt: str) -> List[int]:
+        return eng_t2i(txt)
+
+    def __len__(self) -> int:
+        return len(self.meta_frame)
 
 
 class SpeechDataLoader(DataLoader):
 
-    def __init__(self, dataset: Dataset, batch_size: int, num_workers: int, is_bucket: bool):
+    def __init__(self, dataset: SpeechDataset, batch_size: int, num_workers: int, is_bucket: bool):
         # call super
         super().__init__(dataset,
                          num_workers=num_workers,
@@ -73,3 +134,14 @@ class SpeechDataLoader(DataLoader):
             else:
                 raise ValueError
         return temp
+
+
+if __name__ == '__main__':
+    import sys
+    from pytorch_sound.data.meta.libri_tts import LibriTTSMeta
+
+    args = sys.argv[1:]
+    meta_path = args[0]
+    meta = LibriTTSMeta(meta_path)
+    dataset = SpeechDataset(meta)
+    print(len(dataset))

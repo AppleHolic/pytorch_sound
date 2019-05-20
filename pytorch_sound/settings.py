@@ -1,14 +1,9 @@
-import enum
 import multiprocessing
 from pytorch_sound.data.eng_handler.symbols import symbols
 from typing import List, Dict
 
-
-DataType = enum.Enum('DataType', 'WAV KOR_WAV ENG_WAV WAV_WAV')
-
-
 #
-# STFT parameters
+# AUDIO, STFT parameters
 #
 SAMPLE_RATE: int = 22050  # sample rate of target wave
 WIN_LENGTH: int = 1024  # STFT window length
@@ -22,16 +17,11 @@ MIN_DB: int = -50  # minimum decibel
 MAX_DB: int = 30  # maximum decibel
 VN_DB: float = -11.5  # volume normalization target decibel
 MULAW_BINS: int = 256  # mu-law quantization bin counts
-HF_GAIN: float = 1.  # 생성된 mel 의 high frequency 보정값 ( 현재값 1.0 dB )
 
 
 # number of workers
 NUM_WORKERS: int = multiprocessing.cpu_count() // 2
 
-
-#
-# Vocabulary 관련 설정.
-#
 
 # vocabulary
 IDX_TO_ENG: List[str] = symbols

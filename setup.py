@@ -10,7 +10,7 @@ def get_requirements(filename: str = 'requirements.txt') -> List[str]:
 setup(
     name='pytorch_sound',
     version='0.0.0',
-    description='Sound DL Pipeline Project with Pytorch',
+    description='Sound DL Package Project with Pytorch',
     keywords='sound',
     packages=find_packages(),
     install_requires=get_requirements(),

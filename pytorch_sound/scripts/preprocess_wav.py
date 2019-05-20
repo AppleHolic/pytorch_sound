@@ -3,18 +3,23 @@ import os
 import fire
 import librosa
 from typing import Any
-from pytorch_sound.data.preprocess.commons import go_multiprocess
+from scipy.io.wavfile import read as wav_read
+from pytorch_sound.utils.commons import go_multiprocess
+from pytorch_sound.utils.calculate import volume_norm_log
 
 
-def load_resample_write(args: Any):
+def load_preproc_write(args: Any):
 
-    in_file, out_file, out_sr = args
+    in_file, out_file, out_sr, target_db = args
 
     # load
-    wav, sr = librosa.load(in_file, sr=None)
+    sr, wav = wav_read(in_file)
 
     # resample
     wav = librosa.core.resample(wav, sr, out_sr)
+
+    # volume normalization
+    wav = volume_norm_log(wav, target_db)
 
     # write
     librosa.output.write_wav(out_file, wav, out_sr)
@@ -22,7 +27,6 @@ def load_resample_write(args: Any):
 
 def read_and_write(args: Any):
     in_file, out_file = args
-
     with open(in_file, 'r') as r:
         with open(out_file, 'w') as w:
             w.write(r.read())
@@ -42,7 +46,7 @@ def get_sub_dir(in_dir: str, file_path: str):
     return sub_path
 
 
-class Resampler:
+class Processor:
 
     @staticmethod
     def copy_txt(in_dir: str, out_dir: str):
@@ -64,7 +68,7 @@ class Resampler:
         go_multiprocess(read_and_write, list(zip(in_txt_list, out_txt_list)))
 
     @staticmethod
-    def resample(in_dir: str, out_dir: str, out_sr: str):
+    def __preprocess_wave(in_dir: str, out_dir: str):
 
         # loop up wave files
         print('Lookup file list...')
@@ -83,9 +87,19 @@ class Resampler:
         # make out file path list
         out_wav_list = [os.path.join(out_dir, get_sub_paths(in_dir, in_wav_path)) for in_wav_path in in_wav_list]
 
+        return in_wav_list, out_wav_list
+
+    @staticmethod
+    def preprocess(in_dir: str, out_dir: str, out_sr: int = 22050, target_db: float = 11.5):
+        in_wav_list, out_wav_list = __class__.__preprocess_wave(in_dir, out_dir)
+
+        # make args
+        sr_list = [int(out_sr)] * len(in_wav_list)
+        db_list = [float(target_db)] * len(in_wav_list)
+
         # do multi process
-        go_multiprocess(load_resample_write, list(zip(in_wav_list, out_wav_list, [int(out_sr)] * len(in_wav_list))))
+        go_multiprocess(load_preproc_write, list(zip(in_wav_list, out_wav_list, sr_list, db_list)))
 
 
 if __name__ == '__main__':
-    fire.Fire(Resampler)
+    fire.Fire(Processor)
