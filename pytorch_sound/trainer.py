@@ -9,6 +9,9 @@ import torch
 import enum
 from tensorboardX import SummaryWriter
 from collections import defaultdict
+
+from typing import Tuple, Dict, Any
+
 from pytorch_sound.data.dataset import SpeechDataLoader
 from pytorch_sound.utils.commons import get_loadable_checkpoint, tprint
 from pytorch_sound.utils.tensor import to_device, to_numpy
@@ -28,11 +31,11 @@ class LogType(enum.Enum):
 
 class Trainer:
 
-    def __init__(self, model: nn.Module, train_dataset, valid_dataset,
-                 sr: int, lr: float, betas: float, weight_decay: float,
+    def __init__(self, model: nn.Module, optimizer,
+                 train_dataset, valid_dataset, sr: int,
                  batch_size: int, num_workers: int,
                  max_step: int, valid_max_step: int, save_interval: int,
-                 save_dir: str,
+                 save_dir: str, save_prefix: str = '',
                  grad_clip: float = 0.0, grad_norm: float = 0.0,
                  pretrained_path: str = None):
 
@@ -41,15 +44,11 @@ class Trainer:
 
         # model
         self.model = model
+        self.optimizer = optimizer
 
         # logging
         n_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         tprint('Model {} was loaded. Total {} params.'.format(self.model.__class__.__name__, n_params))
-
-        # optimizer
-        self.optimizer = torch.optim.Adam(self.model.parameters(),
-                                          lr=lr, betas=betas,
-                                          weight_decay=weight_decay, eps=1e-6)
 
         self.dataset = dict()
         self.dataset['train'] = self.repeat(SpeechDataLoader(train_dataset, batch_size, num_workers))
@@ -75,15 +74,14 @@ class Trainer:
             torch.manual_seed(self.seed)
             torch.cuda.manual_seed(self.seed)
 
-        if torch.cuda.device_count() > 1:
-            self.model = nn.parallel.DataParallel(self.model)
-
         # load pretrained model
         if self.step == 0 and pretrained_path is not None:
             self.load_pretrained_model()
 
         # tensorboard logging path
         self.save_dir = save_dir
+        self.save_prefix = save_prefix
+
         # make dirs
         self.log_dir = os.path.join(save_dir, 'logs')
         self.model_dir = os.path.join(save_dir, 'models')
@@ -125,7 +123,7 @@ class Trainer:
         except KeyboardInterrupt:
             tprint('Train is canceled !!')
 
-    def get_data(self, set_name):
+    def get_data(self, set_name: str) -> Tuple[torch.Tensor]:
         return to_device(next(self.dataset[set_name]))
 
     def clip_grad(self):
@@ -137,7 +135,7 @@ class Trainer:
             torch.nn.utils.clip_grad_norm_([p for p in self.model.parameters() if p.requires_grad],
                                            self.grad_norm)
 
-    def train_step(self, step):
+    def train_step(self, step: int) -> torch.Tensor:
 
         # flag for logging
         log_flag = step % self.log_interval == 0
@@ -159,7 +157,7 @@ class Trainer:
             self.tensorboard_log('train', meta, step)
         return loss
 
-    def valid_step(self, step):
+    def valid_step(self, step: int) -> torch.Tensor:
         # switch to evaluation mode
         self.model.eval()
 
@@ -209,10 +207,17 @@ class Trainer:
         # switch to training mode
         self.model.train()
 
-    def load(self, load_optim=True):
+    @property
+    def save_name(self):
+        if isinstance(self.model, nn.parallel.DataParallel):
+            module = self.model.module
+        else:
+            module = self.model
+        return self.save_prefix + '/' + module.__class__.__name__
+
+    def load(self, load_optim: bool = True):
         # make name
-        # TODO : save name
-        save_name = None
+        save_name = self.save_name
 
         # save path
         save_path = os.path.join(self.model_dir, save_name)
@@ -234,7 +239,7 @@ class Trainer:
         else:
             tprint('No any checkpoint in {}. Loading network skipped.'.format(save_path))
 
-    def save(self, step):
+    def save(self, step: int):
 
         # save latest
         state_dict_inf = {
@@ -253,7 +258,7 @@ class Trainer:
         }
 
         # save for training
-        save_name = None
+        save_name = self.save_name
 
         save_path = os.path.join(self.model_dir, save_name)
         pathlib.Path(save_path).mkdir(parents=True, exist_ok=True)
@@ -270,7 +275,7 @@ class Trainer:
         assert os.path.exists(self.pretrained_trained), 'You must define pretrained path!'
         self.model.load_state_dict(torch.load(self.pretrained_trained)['model'])
 
-    def console_log(self, tag, meta, step):
+    def console_log(self, tag: str, meta: Dict[str, Any], step: int):
         # console logging
         msg = '{}\t{:06d} it'.format(tag, step)
         for key, (value, log_type) in sorted(meta.items()):
@@ -278,7 +283,7 @@ class Trainer:
                 msg += '\t{}: {:.6f}'.format(key, value)
         tprint(msg)
 
-    def tensorboard_log(self, tag, meta, step):
+    def tensorboard_log(self, tag: str, meta: Dict[str, Any], step: int):
         for key, (value, log_type) in meta.items():
             if log_type == LogType.IMAGE:
                 self.writer.add_image('{}/{}'.format(tag, key), self.imshow_to_buf(to_numpy(value)), global_step=step)
@@ -297,7 +302,7 @@ class Trainer:
                 yield x
 
     @staticmethod
-    def plot_to_buf(x, align=True):
+    def plot_to_buf(x: np.ndarray, align: bool = True) -> np.ndarray:
         fig, ax = plt.subplots()
         ax.plot(x)
         if align:
@@ -309,7 +314,7 @@ class Trainer:
         return np.rollaxis(im[..., :3], 2)
 
     @staticmethod
-    def imshow_to_buf(x):
+    def imshow_to_buf(x: np.ndarray) -> np.ndarray:
         if len(x.shape) == 3:
             x = x[0]
         fig, ax = plt.subplots()
