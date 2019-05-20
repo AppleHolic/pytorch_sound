@@ -7,12 +7,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import enum
-from tensorboardX import SummaryWriter
-from collections import defaultdict
 
 from typing import Tuple, Dict, Any
-
-from pytorch_sound.data.dataset import SpeechDataLoader
+from tensorboardX import SummaryWriter
+from collections import defaultdict
+from pytorch_sound.settings import SAMPLE_RATE
 from pytorch_sound.utils.commons import get_loadable_checkpoint, tprint
 from pytorch_sound.utils.tensor import to_device, to_numpy
 
@@ -32,12 +31,11 @@ class LogType(enum.Enum):
 class Trainer:
 
     def __init__(self, model: nn.Module, optimizer,
-                 train_dataset, valid_dataset, sr: int,
-                 batch_size: int, num_workers: int,
+                 train_dataset, valid_dataset,
                  max_step: int, valid_max_step: int, save_interval: int,
                  save_dir: str, save_prefix: str = '',
                  grad_clip: float = 0.0, grad_norm: float = 0.0,
-                 pretrained_path: str = None):
+                 pretrained_path: str = None, sr: int = None):
 
         # save project info
         self.pretrained_trained = pretrained_path
@@ -51,12 +49,15 @@ class Trainer:
         tprint('Model {} was loaded. Total {} params.'.format(self.model.__class__.__name__, n_params))
 
         self.dataset = dict()
-        self.dataset['train'] = self.repeat(SpeechDataLoader(train_dataset, batch_size, num_workers))
-        self.dataset['valid'] = self.repeat(SpeechDataLoader(valid_dataset, batch_size, num_workers))
+        self.dataset['train'] = self.repeat(train_dataset)
+        self.dataset['valid'] = self.repeat(valid_dataset)
 
         # save parameters
         self.step = 0
-        self.sr = sr
+        if sr:
+            self.sr = sr
+        else:
+            self.sr = SAMPLE_RATE
         self.max_step = max_step
         self.save_interval = save_interval
         self.grad_clip = grad_clip
@@ -95,7 +96,11 @@ class Trainer:
         self.save_valid_loss = float(1e+5)
 
     @abc.abstractmethod
-    def forward(self, *inputs):
+    def forward(self, *inputs) -> Tuple[torch.Tensor, Dict]:
+        """
+        :param inputs: Loaded Data Points from Speech Loader
+        :return: Loss Tensor, Log Dictionary
+        """
         raise NotImplemented
 
     def run(self):
@@ -273,7 +278,7 @@ class Trainer:
 
     def load_pretrained_model(self):
         assert os.path.exists(self.pretrained_trained), 'You must define pretrained path!'
-        self.model.load_state_dict(torch.load(self.pretrained_trained)['model'])
+        self.model.load_state_dict(get_loadable_checkpoint(torch.load(self.pretrained_trained)['model']))
 
     def console_log(self, tag: str, meta: Dict[str, Any], step: int):
         # console logging

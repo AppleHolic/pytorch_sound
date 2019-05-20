@@ -1,9 +1,10 @@
 import os
 import pandas as pd
-from typing import List
+from typing import List, Tuple
 
 from pytorch_sound.data.meta import MetaFrame
 from pytorch_sound.data.meta.commons import split_train_val_frame
+from pytorch_sound.data.dataset import SpeechDataset, SpeechDataLoader
 
 
 class MaestroMeta(MetaFrame):
@@ -66,6 +67,28 @@ class MaestroMeta(MetaFrame):
         # save data frames
         print('Save meta frames on {}'.format(' '.join(self.frame_file_names)))
         self.save_meta(self.root_dir, self._meta, train_meta, val_meta)
+
+
+def get_datasets(meta_dir: str, batch_size: int, num_workers: int,
+                 fix_len: float = 0.0, skip_audio: bool = False) -> Tuple[SpeechDataLoader]:
+
+    assert os.path.isdir(meta_dir), '{} is not valid directory path!'
+
+    train_file, valid_file = MaestroMeta.frame_file_names[1:]
+
+    # load meta file
+    train_meta = MaestroMeta(os.path.join(meta_dir, train_file))
+    valid_meta = MaestroMeta(os.path.join(meta_dir, valid_file))
+
+    # create dataset
+    train_dataset = SpeechDataset(train_meta, fix_len=fix_len, skip_audio=skip_audio)
+    valid_dataset = SpeechDataset(valid_meta, fix_len=fix_len, skip_audio=skip_audio)
+
+    # create data loader
+    train_loader = SpeechDataLoader(train_dataset, batch_size=batch_size, num_workers=num_workers)
+    valid_loader = SpeechDataLoader(valid_dataset, batch_size=batch_size, num_workers=num_workers)
+
+    return train_loader, valid_loader
 
 
 if __name__ == '__main__':

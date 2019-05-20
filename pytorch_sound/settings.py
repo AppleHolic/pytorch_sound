@@ -3,7 +3,7 @@ from pytorch_sound.data.eng_handler.symbols import symbols
 from typing import List, Dict
 
 #
-# STFT parameters
+# AUDIO, STFT parameters
 #
 SAMPLE_RATE: int = 22050  # sample rate of target wave
 WIN_LENGTH: int = 1024  # STFT window length

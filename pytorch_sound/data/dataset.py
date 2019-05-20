@@ -12,13 +12,16 @@ from pytorch_sound.data.meta import MetaFrame, MetaType
 
 class SpeechDataset(Dataset):
 
-    def __init__(self, meta_frame: MetaFrame, fix_len: int = 0):
+    def __init__(self, meta_frame: MetaFrame, fix_len: int = 0, skip_audio: bool = False):
         """
         :param meta_frame: Data Frame with dataset info
         :param kwargs: attributes to load data
         """
         self.meta_frame = meta_frame
         self.fix_len = fix_len
+        self.cols = self.meta_frame.process_columns
+        if skip_audio:
+            self.cols = [x for x in self.cols if x != MetaType.audio_filename.name]
 
     def __getitem__(self, idx: int):
         meta_item = self.meta_frame.iloc[idx]
