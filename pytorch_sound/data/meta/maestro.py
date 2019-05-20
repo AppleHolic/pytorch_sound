@@ -2,7 +2,7 @@ import os
 import pandas as pd
 from typing import List
 
-from pytorch_sound.data.meta import MetaFrame, MetaType
+from pytorch_sound.data.meta import MetaFrame
 from pytorch_sound.data.meta.commons import split_train_val_frame
 
 
@@ -25,7 +25,7 @@ class MaestroMeta(MetaFrame):
 
     @property
     def columns(self):
-        return [MetaType.audio_filename, MetaType.midi_filename, MetaType.duration]
+        return ['audio_filename', 'midi_filename', 'duration']
 
     @property
     def meta(self) -> pd.DataFrame:
@@ -38,6 +38,9 @@ class MaestroMeta(MetaFrame):
     @property
     def sr(self) -> int:
         return 44100
+
+    def __len__(self):
+        return len(self._meta)
 
     def save_meta(self, meta_dir: str, all_frame: pd.DataFrame, train_frame: pd.DataFrame, val_frame: pd.DataFrame):
         # make names

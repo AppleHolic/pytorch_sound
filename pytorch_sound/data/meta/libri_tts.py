@@ -2,10 +2,10 @@ import pandas as pd
 import os
 import glob
 import re
-from typing import Tuple, List
+from typing import List
 from tqdm import tqdm
 from itertools import repeat
-from pytorch_sound.data.meta import MetaFrame, MetaType
+from pytorch_sound.data.meta import MetaFrame
 from pytorch_sound.data.meta.commons import go_multiprocess, split_train_val_frame
 from pytorch_sound.utils.sound import get_wav_hdr
 
@@ -24,10 +24,10 @@ def preprocess_text(args) -> List:
         txt = ' '.join(map(lambda x: x.strip(), regex.findall(txt)))
         txt_dur = len(' '.join(txt.split()))
 
-        if min_ratio is None or min_ratio is None:
+        if min_ratio is None:
             _pass = True
         else:
-            _pass = min_ratio <= txt_dur / float(dur) <= min_ratio
+            _pass = min_ratio <= (txt_dur / float(dur))
 
     except:
         txt, _pass = '', False
@@ -47,7 +47,7 @@ class LibriTTSMeta(MetaFrame):
     def __init__(self, meta_path: str = '', min_wav_rate: float = 0.0, max_wav_rate: float = 0.0,
                  min_txt_rate: float = 0.0):
         self.meta_path = meta_path
-        if os.path.exists(self.meta_path):
+        if os.path.exists(self.meta_path) and not os.path.isdir(self.meta_path):
             self._meta = pd.read_json(self.meta_path)
         else:
             self._meta = pd.DataFrame(columns=self.columns, data={})
@@ -58,7 +58,7 @@ class LibriTTSMeta(MetaFrame):
 
     @property
     def columns(self):
-        return [MetaType.audio_filename, MetaType.speaker, MetaType.duration, MetaType.text]
+        return ['audio_filename', 'speaker', 'duration', 'text']
 
     @property
     def meta(self) -> pd.DataFrame:
@@ -71,6 +71,9 @@ class LibriTTSMeta(MetaFrame):
     @property
     def sr(self) -> int:
         return 22050
+
+    def __len__(self):
+        return len(self._meta)
 
     def process_duration(self, wav_file_list: List[str], min_wav_rate: float, max_wav_rate: float) -> List[float]:
         dur_list = go_multiprocess(get_wav_duration, wav_file_list)
@@ -92,6 +95,7 @@ class LibriTTSMeta(MetaFrame):
         # split lists
         txt_list, pass_list = map(list, zip(*results))
         self._meta['pass'] = [p1 and p2 for p1, p2 in zip(self._meta['pass'], pass_list)]
+        self._meta['text'] = txt_list
 
     def save_meta(self, meta_path: str, all_frame: pd.DataFrame, train_frame: pd.DataFrame, val_frame: pd.DataFrame):
         assert not os.path.exists(meta_path) or os.path.isdir(meta_path)
@@ -121,17 +125,21 @@ class LibriTTSMeta(MetaFrame):
         print('Update meta infos')
         # update infos
         self._meta['speaker'] = speaker_mult
-        self._meta['file_path'] = wav_file_list
+        self._meta['audio_filename'] = wav_file_list
         self._meta['pass'] = [True] * len(speaker_mult)
 
         # read duration
         print('Check durations on wave files ...')
         dur_list = self.process_duration(wav_file_list, self.min_wav_rate, self.max_wav_rate)
+        self._meta['duration'] = dur_list
 
         # text process
         print('Text pre-process ... ')
         txt_file_list = [file_path.replace('wav', 'txt') for file_path in wav_file_list]
         self.process_txt(txt_file_list, dur_list)
+
+        # filter passed rows
+        self._meta = self._meta[self._meta['pass'].values]
 
         # split train / val
         print('Make train / val meta')

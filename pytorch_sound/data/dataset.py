@@ -1,13 +1,12 @@
 import numpy as np
 import torch
+from scipy.io.wavfile import read as wav_read
 from typing import List
-
+from torch.utils.data import Dataset, DataLoader
+from torch.utils.data.dataloader import default_collate
 from pytorch_sound.utils.sound import parse_midi
 from pytorch_sound.utils.text import eng_t2i
 from pytorch_sound.utils.tensor import fix_length
-from scipy.io.wavfile import read as wav_read
-from torch.utils.data import Dataset, DataLoader
-from torch.utils.data.dataloader import default_collate
 from pytorch_sound.data.meta import MetaFrame, MetaType
 
 
@@ -28,14 +27,14 @@ class SpeechDataset(Dataset):
     def handle_fields(self, meta_item) -> List:
         results = []
         for col in self.meta_frame.process_columns:
-            if col == MetaType.audio_filename:
-                item = self.load_audio(meta_item[col.value])
-            elif col == MetaType.midi_filename:
-                item = self.load_midi(meta_item[col.value])
-            elif col == MetaType.speaker:
-                item = int(meta_item[col.value])
-            elif col == MetaType.text:
-                item = self.load_txt(meta_item[col.value])
+            if col == MetaType.audio_filename.name:
+                item = self.load_audio(meta_item[col])
+            elif col == MetaType.midi_filename.name:
+                item = self.load_midi(meta_item[col])
+            elif col == MetaType.speaker.name:
+                item = int(meta_item[col])
+            elif col == MetaType.text.name:
+                item = self.load_txt(meta_item[col])
             else:
                 raise NotImplementedError('{} is not implemented !'.format(col.value))
             results.append(item)
@@ -63,9 +62,8 @@ class SpeechDataset(Dataset):
         return [mid.get_piano_roll()]
 
     @staticmethod
-    def load_txt(file_path: str) -> List[int]:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return eng_t2i(f.read())
+    def load_txt(txt: str) -> List[int]:
+        return eng_t2i(txt)
 
     def __len__(self) -> int:
         return len(self.meta_frame)
@@ -133,3 +131,14 @@ class SpeechDataLoader(DataLoader):
             else:
                 raise ValueError
         return temp
+
+
+if __name__ == '__main__':
+    import sys
+    from pytorch_sound.data.meta.libri_tts import LibriTTSMeta
+
+    args = sys.argv[1:]
+    meta_path = args[0]
+    meta = LibriTTSMeta(meta_path)
+    dataset = SpeechDataset(meta)
+    print(len(dataset))

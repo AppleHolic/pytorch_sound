@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import enum
-from torch.utils.tensorboard import SummaryWriter
+from tensorboardX import SummaryWriter
 from collections import defaultdict
 from pytorch_sound.data.dataset import SpeechDataLoader
 from pytorch_sound.utils.commons import get_loadable_checkpoint, tprint
