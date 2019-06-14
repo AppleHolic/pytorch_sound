@@ -1,5 +1,10 @@
 import multiprocessing
-import time
+import logging
+import torch
+from typing import Dict
+
+
+__all__ = ['LOGGER']
 
 
 def go_multiprocess(worker_func, inputs):
@@ -20,11 +25,26 @@ def go_multiprocess(worker_func, inputs):
     return res
 
 
-def tprint(msg):
-    print('[{}] {}'.format(time.strftime('%Y%m%d %H:%M:%S'), msg))
+def get_logger(name: str):
+    # setup logger
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.INFO)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+    formatter = logging.Formatter('[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s')
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+    return logger
 
 
-def get_loadable_checkpoint(checkpoint):
+LOGGER = get_logger('main')
+
+
+def log(msg):
+    LOGGER.info(msg)
+
+
+def get_loadable_checkpoint(checkpoint: Dict[str, torch.tensor]) -> Dict[str, torch.tensor]:
     """
     If model is saved with DataParallel, checkpoint keys is started with 'module.' remove it and return new state dict
     :param checkpoint:

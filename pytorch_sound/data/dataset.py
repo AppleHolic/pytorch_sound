@@ -3,12 +3,12 @@ import numpy as np
 import torch
 import librosa
 import copy
+from scipy.io.wavfile import read as read_wav
 from typing import List
 from torch.utils.data import Dataset, DataLoader, Sampler
 from torch.utils.data.dataloader import default_collate
 from pytorch_sound.utils.sound import parse_midi
 from pytorch_sound.utils.text import eng_t2i
-from pytorch_sound.utils.tensor import fix_length
 from pytorch_sound.data.meta import MetaFrame, MetaType
 
 
@@ -25,6 +25,13 @@ class SpeechDataset(Dataset):
         self.audio_mask = audio_mask
         if skip_audio:
             self.cols = [x for x in self.cols if x != MetaType.audio_filename.name]
+
+        # assign read function
+        self.read_wav = self.default_read_wav
+
+    def default_read_wav(self, path, sr=None):
+        sr, wav = read_wav(path)
+        return wav, sr
 
     def __getitem__(self, idx: int):
         meta_item = self.meta_frame.iloc[idx]
@@ -50,14 +57,16 @@ class SpeechDataset(Dataset):
         return results
 
     def load_audio(self, file_path: str) -> List[np.ndarray]:
-        # sr, wav = wav_read(file_path)
-        wav, sr = librosa.load(file_path, sr=None)
+        wav, sr = self.read_wav(file_path, sr=None)
+        if wav.dtype != np.float32:
+            self.read_wav = librosa.load
+            wav, sr = self.read_wav(file_path, sr=None)
         assert sr == self.meta_frame.sr, \
             'sample rate miss match.\n {}\t {} in {}'.format(self.meta_frame.sr, sr, file_path)
         # random crop
         if self.fix_len:
             start_idx = np.random.randint(0, max(1, len(wav) - self.fix_len + 1))
-            wav = fix_length(wav[start_idx:], self.fix_len)
+            wav = wav[start_idx:start_idx + self.fix_len]
         return wav
 
     @staticmethod

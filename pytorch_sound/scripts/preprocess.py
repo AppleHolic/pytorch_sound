@@ -2,17 +2,20 @@ import glob
 import os
 import fire
 from typing import Any
-
+from ffmpeg_normalize import FFmpegNormalize
 from pytorch_sound import settings
 from pytorch_sound.data.meta.libri_tts import LibriTTSMeta
 from pytorch_sound.scripts.libri_tts.fetch_eng_wav import fetch_structure
 from pytorch_sound.utils.commons import go_multiprocess
 
 
-def load_preproc_write(args: Any):
-    in_file, out_file, out_sr = args
-    cmd = 'sox {} -r {} {} rate '.format(in_file, out_sr, out_file)
-    os.system(cmd)
+def process_all(args):
+    in_file, out_file = args
+
+    norm = FFmpegNormalize(normalization_type='rms', target_level=settings.VN_DB,
+                           audio_codec='pcm_f32le', sample_rate=settings.SAMPLE_RATE)
+    norm.add_media_file(in_file, out_file)
+    norm.run_normalization()
 
 
 def read_and_write(args: Any):
@@ -80,14 +83,11 @@ class Processor:
         return in_wav_list, out_wav_list
 
     @staticmethod
-    def resample(in_dir: str, out_dir: str, out_sr: int = 22050):
+    def preprocess(in_dir: str, out_dir: str):
         in_wav_list, out_wav_list = __class__.__preprocess_wave(in_dir, out_dir)
 
-        # make args
-        sr_list = [int(out_sr)] * len(in_wav_list)
-
         # do multi process
-        go_multiprocess(load_preproc_write, list(zip(in_wav_list, out_wav_list, sr_list)))
+        go_multiprocess(process_all, list(zip(in_wav_list, out_wav_list)))
 
     @staticmethod
     def libri_tts(in_dir: str, out_dir: str, out_sr: int = 22050,
@@ -96,7 +96,7 @@ class Processor:
         fetch_structure(in_dir, in_dir, target_txt=target_txt, is_clean=is_clean)
 
         # resample audios
-        __class__.resample(in_dir, out_dir, out_sr)
+        __class__.preprocess(in_dir, out_dir, out_sr)
 
         # copy texts
         __class__.copy_txt(in_dir, out_dir)

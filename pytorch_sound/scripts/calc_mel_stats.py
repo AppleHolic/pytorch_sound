@@ -47,7 +47,6 @@ def main(meta_dir: str, out_path: str = '', batch_size: int = 32, num_workers: i
     mel_f_list = mel_buf.cpu().numpy().tolist()
 
     # print and write
-    print(str(mel_f_list))
     if out_path:
         os.makedirs(os.path.split(out_path)[0], exist_ok=True)
         with open(out_path, 'w') as w:

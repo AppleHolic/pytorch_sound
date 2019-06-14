@@ -13,14 +13,6 @@ def parse_midi(path):
     return midi
 
 
-def get_f0(x, hop_length, sr):
-    import pyworld
-    x = librosa.util.pad_center(x, len(x), mode='reflect').astype('double')
-    _f0, t = pyworld.dio(x, sr, frame_period=hop_length / sr * 1e+3)  # raw pitch extractor
-    f0 = pyworld.stonemask(x, _f0, t, sr)  # pitch refinement
-    return f0
-
-
 # based on https://blog.theroyweb.com/extracting-wav-file-header-information-using-a-python-script
 def get_wav_header(wav_file):
     """ Extracts data in the first 44 bytes in a WAV file and writes it

@@ -5,6 +5,7 @@ from typing import List, Dict
 #
 # AUDIO, STFT parameters
 #
+# TODO: update db
 SAMPLE_RATE: int = 22050  # sample rate of target wave
 WIN_LENGTH: int = 1024  # STFT window length
 HOP_LENGTH: int = 256  # STFT hop length
