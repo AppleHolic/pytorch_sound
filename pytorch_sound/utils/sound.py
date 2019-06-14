@@ -22,7 +22,7 @@ def get_f0(x, hop_length, sr):
 
 
 # based on https://blog.theroyweb.com/extracting-wav-file-header-information-using-a-python-script
-def get_wav_hdr(wav_file):
+def get_wav_header(wav_file):
     """ Extracts data in the first 44 bytes in a WAV file and writes it
             out in a human-readable format
     """

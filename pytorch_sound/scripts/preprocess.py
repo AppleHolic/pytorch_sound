@@ -1,28 +1,18 @@
 import glob
 import os
 import fire
-import librosa
 from typing import Any
-from scipy.io.wavfile import read as wav_read
+
+from pytorch_sound import settings
+from pytorch_sound.data.meta.libri_tts import LibriTTSMeta
+from pytorch_sound.scripts.libri_tts.fetch_eng_wav import fetch_structure
 from pytorch_sound.utils.commons import go_multiprocess
-from pytorch_sound.utils.calculate import volume_norm_log
 
 
 def load_preproc_write(args: Any):
-
-    in_file, out_file, out_sr, target_db = args
-
-    # load
-    sr, wav = wav_read(in_file)
-
-    # resample
-    wav = librosa.core.resample(wav, sr, out_sr)
-
-    # volume normalization
-    wav = volume_norm_log(wav, target_db)
-
-    # write
-    librosa.output.write_wav(out_file, wav, out_sr)
+    in_file, out_file, out_sr = args
+    cmd = 'sox {} -r {} {} rate '.format(in_file, out_sr, out_file)
+    os.system(cmd)
 
 
 def read_and_write(args: Any):
@@ -90,15 +80,31 @@ class Processor:
         return in_wav_list, out_wav_list
 
     @staticmethod
-    def preprocess(in_dir: str, out_dir: str, out_sr: int = 22050, target_db: float = 11.5):
+    def resample(in_dir: str, out_dir: str, out_sr: int = 22050):
         in_wav_list, out_wav_list = __class__.__preprocess_wave(in_dir, out_dir)
 
         # make args
         sr_list = [int(out_sr)] * len(in_wav_list)
-        db_list = [float(target_db)] * len(in_wav_list)
 
         # do multi process
-        go_multiprocess(load_preproc_write, list(zip(in_wav_list, out_wav_list, sr_list, db_list)))
+        go_multiprocess(load_preproc_write, list(zip(in_wav_list, out_wav_list, sr_list)))
+
+    @staticmethod
+    def libri_tts(in_dir: str, out_dir: str, out_sr: int = 22050,
+                  target_txt: str = 'normalized', is_clean: bool = True):
+        # re-construct & copy raw data
+        fetch_structure(in_dir, in_dir, target_txt=target_txt, is_clean=is_clean)
+
+        # resample audios
+        __class__.resample(in_dir, out_dir, out_sr)
+
+        # copy texts
+        __class__.copy_txt(in_dir, out_dir)
+
+        # make meta files
+        meta_dir = os.path.join(out_dir, 'meta')
+        meta = LibriTTSMeta(meta_dir)
+        meta.make_meta(out_dir, settings.MIN_WAV_RATE, settings.MAX_WAV_RATE, settings.MIN_TXT_RATE)
 
 
 if __name__ == '__main__':

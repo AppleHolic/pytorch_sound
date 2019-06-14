@@ -1,7 +1,9 @@
 import multiprocessing
 import re
 import random
-from pytorch_sound.utils.sound import get_wav_hdr
+from collections import defaultdict
+
+from pytorch_sound.utils.sound import get_wav_header
 
 
 def go_multiprocess(worker_func, inputs):
@@ -25,7 +27,7 @@ def go_multiprocess(worker_func, inputs):
 def get_wav_duration(args):
     speaker, file = args
     try:
-        dur = get_wav_hdr(file)['Duration']
+        dur = get_wav_header(file)['Duration']
     except:
         dur = -1
     return speaker, file, dur
@@ -68,13 +70,29 @@ def split_train_val_frame(data_frame, val_rate=0.1):
     # split
     idx_list = list(range(total_len))
 
-    # shuffle
-    random.shuffle(idx_list)
+    if 'speaker' in data_frame:
+        temp = defaultdict(list)
+        for idx, spk in enumerate(data_frame['speaker'].values):
+            temp[spk].append(idx)
 
-    # make idx list
-    split_idx = int(total_len * val_rate)
-    train_idx = idx_list[split_idx:]
-    val_idx = idx_list[:split_idx]
+        # shuffle
+        for key in temp.keys():
+            random.shuffle(temp[key])
+
+        train_idx = []
+        val_idx = []
+        for key in temp.keys():
+            split_idx = int(len(temp[key]) * val_rate)
+            train_idx.extend(temp[key][split_idx:])
+            val_idx.extend(temp[key][:split_idx])
+    else:
+        # shuffle
+        random.shuffle(idx_list)
+
+        # make idx list
+        split_idx = int(total_len * val_rate)
+        train_idx = idx_list[split_idx:]
+        val_idx = idx_list[:split_idx]
 
     # split data frame
     train_frame = data_frame.iloc[train_idx]

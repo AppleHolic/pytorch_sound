@@ -19,6 +19,12 @@ VN_DB: float = -11.5  # volume normalization target decibel
 MULAW_BINS: int = 256  # mu-law quantization bin counts
 
 
+# Default Preprocess Options
+MIN_WAV_RATE: int = 2  # * sample_rate
+MAX_WAV_RATE: int = 15
+MIN_TXT_RATE: float = 0
+
+
 # number of workers
 NUM_WORKERS: int = multiprocessing.cpu_count() // 2
 

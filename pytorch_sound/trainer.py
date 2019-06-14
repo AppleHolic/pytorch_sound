@@ -32,7 +32,7 @@ class Trainer:
 
     def __init__(self, model: nn.Module, optimizer,
                  train_dataset, valid_dataset,
-                 max_step: int, valid_max_step: int, save_interval: int,
+                 max_step: int, valid_max_step: int, save_interval: int, log_interval: int,
                  save_dir: str, save_prefix: str = '',
                  grad_clip: float = 0.0, grad_norm: float = 0.0,
                  pretrained_path: str = None, sr: int = None):
@@ -60,9 +60,20 @@ class Trainer:
             self.sr = SAMPLE_RATE
         self.max_step = max_step
         self.save_interval = save_interval
+        self.log_interval = log_interval
+        self.save_dir = save_dir
+        self.save_prefix = save_prefix
         self.grad_clip = grad_clip
         self.grad_norm = grad_norm
         self.valid_max_step = valid_max_step
+
+        # make dirs
+        self.log_dir = os.path.join(save_dir, 'logs', self.save_prefix)
+        self.model_dir = os.path.join(save_dir, 'models')
+        os.makedirs(self.log_dir, exist_ok=True)
+        os.makedirs(self.model_dir, exist_ok=True)
+
+        self.writer = SummaryWriter(log_dir=self.log_dir, flush_secs=10)
 
         # load previous checkpoint
         # set seed
@@ -76,29 +87,18 @@ class Trainer:
             torch.cuda.manual_seed(self.seed)
 
         # load pretrained model
-        if self.step == 0 and pretrained_path is not None:
+        if self.step == 0 and pretrained_path:
             self.load_pretrained_model()
-
-        # tensorboard logging path
-        self.save_dir = save_dir
-        self.save_prefix = save_prefix
-
-        # make dirs
-        self.log_dir = os.path.join(save_dir, 'logs')
-        self.model_dir = os.path.join(save_dir, 'models')
-        os.makedirs(self.log_dir, exist_ok=True)
-        os.makedirs(self.model_dir, exist_ok=True)
-
-        self.writer = SummaryWriter(log_dir=self.log_dir, flush_secs=10)
 
         # valid loss
         self.best_valid_loss = float(1e+5)
         self.save_valid_loss = float(1e+5)
 
     @abc.abstractmethod
-    def forward(self, *inputs) -> Tuple[torch.Tensor, Dict]:
+    def forward(self, *inputs, is_logging: bool = False) -> Tuple[torch.Tensor, Dict]:
         """
         :param inputs: Loaded Data Points from Speech Loader
+        :param is_logging: log or not
         :return: Loss Tensor, Log Dictionary
         """
         raise NotImplemented
@@ -112,7 +112,7 @@ class Trainer:
                 self.step = i
 
                 # logging
-                if i % self.save_interval:
+                if i % self.save_interval == 0:
                     tprint('------------- TRAIN step : %d -------------' % i)
 
                 # do training step
@@ -120,6 +120,7 @@ class Trainer:
 
                 # save model
                 if i % self.save_interval == 0:
+                    tprint('------------- VALID step : %d -------------' % i)
                     # do validation first
                     self.valid_step(i)
                     # save model checkpoint file
@@ -236,7 +237,10 @@ class Trainer:
             if 'seed' in state_dict:
                 self.seed = state_dict['seed']
             # load model
-            self.model.load_state_dict(get_loadable_checkpoint(state_dict['model']))
+            if isinstance(self.model, nn.DataParallel):
+                self.model.module.load_state_dict(get_loadable_checkpoint(state_dict['model']))
+            else:
+                self.model.load_state_dict(get_loadable_checkpoint(state_dict['model']))
             if load_optim:
                 self.optimizer.load_state_dict(state_dict['optim'])
             self.step = state_dict['step']
@@ -247,16 +251,17 @@ class Trainer:
     def save(self, step: int):
 
         # save latest
+        state_dict = get_loadable_checkpoint(self.model.state_dict())
         state_dict_inf = {
             'step': step,
-            'model': self.model.state_dict(),
+            'model': state_dict,
             'seed': self.seed,
         }
 
         # train
         state_dict_train = {
             'step': step,
-            'model': self.model.state_dict(),
+            'model': state_dict,
             'optim': self.optimizer.state_dict(),
             'pretrained_step': step,
             'seed': self.seed
@@ -270,7 +275,7 @@ class Trainer:
         torch.save(state_dict_train, os.path.join(save_path, 'step_{:06d}.chkpt'.format(step)))
 
         # save for inference
-        save_path = os.path.join(self.project_path, 'model', save_name + '.latest.chkpt')
+        save_path = os.path.join(self.model_dir, save_name + '.latest.chkpt')
         torch.save(state_dict_inf, save_path)
 
         # logging

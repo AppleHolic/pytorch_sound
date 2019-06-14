@@ -1,3 +1,4 @@
+import inspect
 import os
 import torch
 
@@ -15,3 +16,8 @@ def load_weights(chkpt_path: str, version: float):
 def get_latest_weights(project_path: str, task_type: str, version: float):
     saved_path = os.path.join(project_path, 'model', task_type.name.lower() + '.latest.chkpt')
     return load_weights(saved_path, version)
+
+
+def parse_model_kwargs(model_cls, **kwargs):
+    kwargs = {k: v for k, v in kwargs.items() if k in inspect.getfullargspec(model_cls).args}
+    return kwargs

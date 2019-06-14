@@ -1,8 +1,10 @@
+import math
 import numpy as np
 import torch
-from scipy.io.wavfile import read as wav_read
+import librosa
+import copy
 from typing import List
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, Sampler
 from torch.utils.data.dataloader import default_collate
 from pytorch_sound.utils.sound import parse_midi
 from pytorch_sound.utils.text import eng_t2i
@@ -12,7 +14,7 @@ from pytorch_sound.data.meta import MetaFrame, MetaType
 
 class SpeechDataset(Dataset):
 
-    def __init__(self, meta_frame: MetaFrame, fix_len: int = 0, skip_audio: bool = False):
+    def __init__(self, meta_frame: MetaFrame, fix_len: int = 0, skip_audio: bool = False, audio_mask: bool = False):
         """
         :param meta_frame: Data Frame with dataset info
         :param kwargs: attributes to load data
@@ -20,6 +22,7 @@ class SpeechDataset(Dataset):
         self.meta_frame = meta_frame
         self.fix_len = fix_len
         self.cols = self.meta_frame.process_columns
+        self.audio_mask = audio_mask
         if skip_audio:
             self.cols = [x for x in self.cols if x != MetaType.audio_filename.name]
 
@@ -32,6 +35,9 @@ class SpeechDataset(Dataset):
         for col in self.meta_frame.process_columns:
             if col == MetaType.audio_filename.name:
                 item = self.load_audio(meta_item[col])
+                if self.audio_mask:
+                    results.append(item)
+                    item = np.ones_like(item)
             elif col == MetaType.midi_filename.name:
                 item = self.load_midi(meta_item[col])
             elif col == MetaType.speaker.name:
@@ -44,14 +50,15 @@ class SpeechDataset(Dataset):
         return results
 
     def load_audio(self, file_path: str) -> List[np.ndarray]:
-        sr, wav = wav_read(file_path)
+        # sr, wav = wav_read(file_path)
+        wav, sr = librosa.load(file_path, sr=None)
         assert sr == self.meta_frame.sr, \
             'sample rate miss match.\n {}\t {} in {}'.format(self.meta_frame.sr, sr, file_path)
         # random crop
         if self.fix_len:
             start_idx = np.random.randint(0, max(1, len(wav) - self.fix_len + 1))
             wav = fix_length(wav[start_idx:], self.fix_len)
-        return [wav]
+        return wav
 
     @staticmethod
     def load_midi(file_path: str) -> List[np.ndarray]:
@@ -62,7 +69,7 @@ class SpeechDataset(Dataset):
         # load midi file
         mid = parse_midi(file_path)
         # TODO: enhance preprocess midi info
-        return [mid.get_piano_roll()]
+        return mid.get_piano_roll()
 
     @staticmethod
     def load_txt(txt: str) -> List[int]:
@@ -72,16 +79,60 @@ class SpeechDataset(Dataset):
         return len(self.meta_frame)
 
 
+class BucketRandomBatchSampler(Sampler):
+    """
+    It chunks samples into buckets and sample bucket id randomly for each minibatch.
+    """
+
+    def __init__(self, data_source, n_buckets, batch_size):
+        self.n_buckets = n_buckets
+        self.data_size = len(data_source)
+        self.batch_size = batch_size
+        self.bucket_size = int(math.ceil(self.data_size / self.n_buckets))
+        self.bucket_size -= self.bucket_size % batch_size
+
+        if self.n_buckets <= 0:
+            raise ValueError("the num of buckets has to be a positive value.")
+
+        self.buckets = [list(range(i * self.bucket_size, (i + 1) * self.bucket_size))
+                        for i in range(self.n_buckets)]
+
+    def __iter__(self):
+        # copy buckets and shuffle indices
+        buckets = copy.deepcopy(self.buckets)
+        for idx in range(len(buckets)):
+            np.random.shuffle(buckets[idx])
+
+        # pop up indices
+        while buckets:
+            bucket_id = np.random.choice(range(len(buckets)))
+            ids = buckets[bucket_id][-self.batch_size:]  # pick last
+            buckets[bucket_id] = buckets[bucket_id][:-self.batch_size]
+            if not buckets[bucket_id]:
+                buckets.pop(bucket_id)
+            yield ids
+
+    def __len__(self):
+        return self.bucket_size * self.n_buckets // self.batch_size
+
+
 class SpeechDataLoader(DataLoader):
 
-    def __init__(self, dataset: SpeechDataset, batch_size: int, num_workers: int, is_bucket: bool):
+    def __init__(self, dataset: SpeechDataset, batch_size: int, num_workers: int,
+                 n_buckets: int = 10, is_bucket: bool = True):
+
+        batch_sampler = None
+        if is_bucket:
+            batch_sampler = BucketRandomBatchSampler(
+                dataset, n_buckets=n_buckets, batch_size=batch_size)
         # call super
         super().__init__(dataset,
                          num_workers=num_workers,
                          collate_fn=self.pad_collate_fn,
                          pin_memory=True,
                          batch_size=(1 if is_bucket else batch_size),
-                         shuffle=(not is_bucket))
+                         shuffle=(not is_bucket),
+                         batch_sampler=batch_sampler)
 
     @staticmethod
     def pad_collate_fn(batch):
