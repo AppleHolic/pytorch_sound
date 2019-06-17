@@ -25,12 +25,12 @@ def go_multiprocess(worker_func, inputs):
 
 
 def get_wav_duration(args):
-    speaker, file = args
+    file = args
     try:
         dur = get_wav_header(file)['Duration']
     except:
         dur = -1
-    return speaker, file, dur
+    return dur
 
 
 def get_text_len(args):

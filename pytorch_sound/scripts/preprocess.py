@@ -90,13 +90,15 @@ class Processor:
         go_multiprocess(process_all, list(zip(in_wav_list, out_wav_list)))
 
     @staticmethod
-    def libri_tts(in_dir: str, out_dir: str, out_sr: int = 22050,
-                  target_txt: str = 'normalized', is_clean: bool = True):
+    def libri_tts(in_dir: str, out_dir: str, target_txt: str = 'normalized', is_clean: bool = False):
         # re-construct & copy raw data
         fetch_structure(in_dir, in_dir, target_txt=target_txt, is_clean=is_clean)
 
-        # resample audios
-        __class__.preprocess(in_dir, out_dir, out_sr)
+        # fetched data dir
+        in_dir = os.path.join(in_dir, 'train')
+
+        # preprocess audios
+        __class__.preprocess(in_dir, out_dir)
 
         # copy texts
         __class__.copy_txt(in_dir, out_dir)

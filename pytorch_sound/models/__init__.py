@@ -2,6 +2,7 @@
 # https://github.com/pytorch/fairseq/blob/master/fairseq/models/__init__.py
 import torch.nn as nn
 
+from pytorch_sound.utils.training import parse_model_kwargs
 
 MODEL_REGISTRY = {}
 ARCH_MODEL_REGISTRY = {}
@@ -10,8 +11,9 @@ ARCH_CONFIG_REGISTRY = {}
 
 
 def build_model(arch_name: str) -> nn.Module:
-    kwargs = ARCH_CONFIG_REGISTRY[arch_name]
-    return ARCH_MODEL_REGISTRY[arch_name](**kwargs)
+    cls = ARCH_MODEL_REGISTRY[arch_name]
+    kwargs = parse_model_kwargs(cls, **ARCH_CONFIG_REGISTRY[arch_name]())
+    return cls(**kwargs)
 
 
 def register_model(name: str):
