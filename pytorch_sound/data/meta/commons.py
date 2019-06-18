@@ -2,11 +2,13 @@ import multiprocessing
 import re
 import random
 from collections import defaultdict
+from typing import Callable, List, Any, Tuple
 
 from pytorch_sound.utils.sound import get_wav_header
+from pytorch_sound.data.meta import MetaFrame
 
 
-def go_multiprocess(worker_func, inputs):
+def go_multiprocess(worker_func: Callable, inputs: List[Any]) -> Any:
 
     # declare pool
     cpu_count = multiprocessing.cpu_count() // 2
@@ -24,8 +26,7 @@ def go_multiprocess(worker_func, inputs):
     return res
 
 
-def get_wav_duration(args):
-    file = args
+def get_wav_duration(file: str) -> int:
     try:
         dur = get_wav_header(file)['Duration']
     except:
@@ -33,7 +34,7 @@ def get_wav_duration(args):
     return dur
 
 
-def get_text_len(args):
+def get_text_len(args: Tuple[int, str, int]) -> Tuple[int, str, int, int]:
     speaker, file, dur = args
     try:
         with open(file, encoding='utf-8') as f:
@@ -47,7 +48,7 @@ def get_text_len(args):
     return speaker, file, dur, txt_dur
 
 
-def clean_eng(args):
+def clean_eng(args: Tuple[int, str, int]) -> Tuple[int, str, int, int]:
     speaker, file, dur = args
     regex = re.compile(r'[a-zA-Z\'\.\,\?\!\ ]+')
     try:
@@ -63,7 +64,7 @@ def clean_eng(args):
     return speaker, file, dur, txt_dur
 
 
-def split_train_val_frame(data_frame, val_rate=0.1):
+def split_train_val_frame(data_frame: MetaFrame, val_rate: float = 0.1) -> Tuple[MetaFrame, MetaFrame]:
     # total length
     total_len = len(data_frame)
 

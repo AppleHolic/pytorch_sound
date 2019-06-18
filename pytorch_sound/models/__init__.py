@@ -2,6 +2,7 @@
 # https://github.com/pytorch/fairseq/blob/master/fairseq/models/__init__.py
 import torch.nn as nn
 
+from typing import Callable
 from pytorch_sound.utils.training import parse_model_kwargs
 
 MODEL_REGISTRY = {}
@@ -16,7 +17,7 @@ def build_model(arch_name: str) -> nn.Module:
     return cls(**kwargs)
 
 
-def register_model(name: str):
+def register_model(name: str) -> Callable:
     """
     New model types can be added to cached dict with the :func:`register_model`
     function decorator.
@@ -37,7 +38,7 @@ def register_model(name: str):
     return register_model_cls
 
 
-def register_model_architecture(model_name: str, arch_name: str):
+def register_model_architecture(model_name: str, arch_name: str) -> Callable:
     """
     New model architectures can be added to cached dict with the
     :func:`register_model_architecture` function decorator. After registration,

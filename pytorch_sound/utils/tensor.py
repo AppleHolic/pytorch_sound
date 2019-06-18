@@ -13,7 +13,7 @@ def to_numpy(gpu_tensor: torch.tensor) -> np.array:
     return gpu_tensor.detach().cpu().numpy()
 
 
-def concat_complex(a, b, dim=1):
+def concat_complex(a: torch.tensor, b: torch.tensor, dim: int = 1) -> torch.tensor:
     a_real, a_img = a.chunk(2, dim)
     b_real, b_img = b.chunk(2, dim)
     return torch.cat([a_real, b_real, a_img, b_img], dim=dim)

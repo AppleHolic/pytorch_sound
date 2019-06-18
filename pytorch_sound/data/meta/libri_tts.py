@@ -26,7 +26,7 @@ class LibriTTSMeta(MetaFrame):
         self._num_speakers = None
 
     @property
-    def columns(self):
+    def columns(self) -> List[str]:
         return ['audio_filename', 'speaker', 'duration', 'text']
 
     @property
@@ -34,7 +34,7 @@ class LibriTTSMeta(MetaFrame):
         return self._meta
 
     @property
-    def sr(self):
+    def sr(self) -> int:
         return 22050
 
     @property
@@ -176,7 +176,7 @@ def get_datasets(meta_dir: str, batch_size: int, num_workers: int,
     return train_loader, valid_loader
 
 
-def get_speakers(meta_dir: str):
+def get_speakers(meta_dir: str) -> int:
     assert os.path.isdir(meta_dir), '{} is not valid directory path!'
 
     train_file = LibriTTSMeta.frame_file_names[1]

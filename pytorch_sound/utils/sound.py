@@ -1,9 +1,9 @@
 import struct
-import librosa
 import pretty_midi
+from typing import Dict, Any
 
 
-def parse_midi(path):
+def parse_midi(path: str):
     midi = None
     try:
         midi = pretty_midi.PrettyMIDI(path)
@@ -14,7 +14,7 @@ def parse_midi(path):
 
 
 # based on https://blog.theroyweb.com/extracting-wav-file-header-information-using-a-python-script
-def get_wav_header(wav_file):
+def get_wav_header(wav_file: str) -> Dict[str, Any]:
     """ Extracts data in the first 44 bytes in a WAV file and writes it
             out in a human-readable format
     """

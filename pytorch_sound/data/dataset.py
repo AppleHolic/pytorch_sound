@@ -29,11 +29,11 @@ class SpeechDataset(Dataset):
         # assign read function
         self.read_wav = self.default_read_wav
 
-    def default_read_wav(self, path, sr=None):
+    def default_read_wav(self, path: str, sr: int = None):
         sr, wav = read_wav(path)
         return wav, sr
 
-    def __getitem__(self, idx: int):
+    def __getitem__(self, idx: int) -> List:
         meta_item = self.meta_frame.iloc[idx]
         return self.handle_fields(meta_item)
 
@@ -93,7 +93,7 @@ class BucketRandomBatchSampler(Sampler):
     It chunks samples into buckets and sample bucket id randomly for each minibatch.
     """
 
-    def __init__(self, data_source, n_buckets, batch_size):
+    def __init__(self, data_source: Dataset, n_buckets: int, batch_size: int):
         self.n_buckets = n_buckets
         self.data_size = len(data_source)
         self.batch_size = batch_size
@@ -144,7 +144,7 @@ class SpeechDataLoader(DataLoader):
                          batch_sampler=batch_sampler)
 
     @staticmethod
-    def pad_collate_fn(batch):
+    def pad_collate_fn(batch: List[torch.tensor]) -> torch.tensor:
 
         if len(batch) > 1:
             # do zero-padding
@@ -174,7 +174,7 @@ class SpeechDataLoader(DataLoader):
                 return default_collate(batch)
 
     @staticmethod
-    def __pad_zero(sub_batch):
+    def __pad_zero(sub_batch: List[np.ndarray]) -> np.ndarray:
         dims = [b.shape for b in sub_batch]
 
         max_dims = list(dims[0])

@@ -30,7 +30,7 @@ class LogType(enum.Enum):
 
 class Trainer:
 
-    def __init__(self, model: nn.Module, optimizer,
+    def __init__(self, model: nn.Module, optimizer: torch.optim.Optimizer,
                  train_dataset, valid_dataset,
                  max_step: int, valid_max_step: int, save_interval: int, log_interval: int,
                  save_dir: str, save_prefix: str = '',

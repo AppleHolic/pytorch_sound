@@ -1,22 +1,26 @@
 import numpy as np
 import torch
+from typing import Union
 from pytorch_sound import settings
 
 
-def db2log(db):
+TensorOrArr = Union[torch.tensor, np.ndarray]
+
+
+def db2log(db: TensorOrArr) -> TensorOrArr:
     if isinstance(db, np.ndarray) or isinstance(db, int):
         return np.log(np.power(10, db / 10))
     else:
         return torch.log(torch.pow(10, db / 10.))
 
 
-def unnorm_mel(x):
+def unnorm_mel(x: TensorOrArr) -> TensorOrArr:
     # mel range
     mel_min, mel_max = db2log(settings.MIN_DB), db2log(settings.MAX_DB)
     return ((x + 1) * 0.5) * (mel_max - mel_min) + mel_min
 
 
-def norm_mel(x):
+def norm_mel(x: TensorOrArr) -> TensorOrArr:
     # mel range
     mel_min, mel_max = db2log(settings.MIN_DB), db2log(settings.MAX_DB)
     x = x.clamp(mel_min, mel_max)

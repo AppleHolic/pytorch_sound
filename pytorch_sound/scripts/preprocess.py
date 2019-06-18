@@ -1,7 +1,7 @@
 import glob
 import os
 import fire
-from typing import Any
+from typing import Any, Tuple
 from ffmpeg_normalize import FFmpegNormalize
 from pytorch_sound import settings
 from pytorch_sound.data.meta.libri_tts import LibriTTSMeta
@@ -9,7 +9,7 @@ from pytorch_sound.scripts.libri_tts.fetch_eng_wav import fetch_structure
 from pytorch_sound.utils.commons import go_multiprocess
 
 
-def process_all(args):
+def process_all(args: Tuple[str]):
     in_file, out_file = args
 
     norm = FFmpegNormalize(normalization_type='rms', target_level=settings.VN_DB,
@@ -18,7 +18,7 @@ def process_all(args):
     norm.run_normalization()
 
 
-def read_and_write(args: Any):
+def read_and_write(args: Tuple[str]):
     in_file, out_file = args
     with open(in_file, 'r') as r:
         with open(out_file, 'w') as w:

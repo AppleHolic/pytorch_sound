@@ -1,13 +1,13 @@
 import multiprocessing
 import logging
 import torch
-from typing import Dict
+from typing import Dict, Callable, List, Any
 
 
 __all__ = ['LOGGER']
 
 
-def go_multiprocess(worker_func, inputs):
+def go_multiprocess(worker_func: Callable, inputs: List[Any]) -> List[Any]:
 
     # declare pool
     cpu_count = multiprocessing.cpu_count() // 2
@@ -40,7 +40,7 @@ def get_logger(name: str):
 LOGGER = get_logger('main')
 
 
-def log(msg):
+def log(msg: str):
     LOGGER.info(msg)
 
 

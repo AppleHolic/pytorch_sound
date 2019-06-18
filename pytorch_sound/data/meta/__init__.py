@@ -13,7 +13,7 @@ MetaType = enum.Enum('MetaType', 'audio_filename midi_filename speaker duration 
 class MetaFrame:
 
     @property
-    def process_columns(self):
+    def process_columns(self) -> List[str]:
         fields = [MetaType.audio_filename, MetaType.midi_filename, MetaType.speaker, MetaType.text]
         vals = [x.name for x in fields]
         return [col for col in self.columns if col in fields or col in vals]

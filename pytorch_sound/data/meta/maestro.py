@@ -25,7 +25,7 @@ class MaestroMeta(MetaFrame):
         self.max_wav_rate = max_wav_rate
 
     @property
-    def columns(self):
+    def columns(self) -> List[str]:
         return ['audio_filename', 'midi_filename', 'duration']
 
     @property
@@ -33,7 +33,7 @@ class MaestroMeta(MetaFrame):
         return self._meta
 
     @property
-    def sr(self):
+    def sr(self) -> int:
         return 44100
 
     @property
