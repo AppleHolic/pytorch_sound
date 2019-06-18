@@ -1,6 +1,7 @@
 import glob
 import os
 import fire
+from tqdm import tqdm
 
 
 # Convert LibriTTS Structure
@@ -17,7 +18,7 @@ import fire
 # dev-other
 # test-clean
 # TODO: Contain resampling / volume normalization process
-def run_detach(data_dir: str, out_dir: str, target_txt: str = 'normalized', is_clean=True):
+def fetch_structure(data_dir: str, out_dir: str, target_txt: str = 'normalized', is_clean: bool = True):
     # define target data
     if is_clean:
         target_dirs = ['train-clean-360', 'dev-clean']
@@ -36,7 +37,8 @@ def run_detach(data_dir: str, out_dir: str, target_txt: str = 'normalized', is_c
         # rename
         mid_dir = 'train' if 'train' in target_name else 'valid'
         speakers = os.listdir(target_dir)
-        for spk_id, speaker in enumerate(speakers):
+        print('Copying on {} ...'.format(target_name))
+        for spk_id, speaker in tqdm(enumerate(speakers)):
             # make lookup str
             wav_lookup_str = os.path.join(target_dir, speaker, '**', '*.wav')
             txt_lookup_str = os.path.join(target_dir, speaker, '**', '*.{}.txt'.format(target_txt))
@@ -44,6 +46,7 @@ def run_detach(data_dir: str, out_dir: str, target_txt: str = 'normalized', is_c
             # make cmd
             sub_wav_dir = out_wav_dir.format(mid_dir, speaker)
             sub_txt_dir = out_txt_dir.format(mid_dir, speaker)
+
             # make output dir
             os.makedirs(sub_wav_dir, exist_ok=True)
             os.makedirs(sub_txt_dir, exist_ok=True)
@@ -61,7 +64,8 @@ def run_detach(data_dir: str, out_dir: str, target_txt: str = 'normalized', is_c
                 os.system('{} &'.format(conc_cmd))
 
         # rename txt
-        for speaker in speakers:
+        print('Renaming texts on {} ...'.format(target_name))
+        for speaker in tqdm(speakers):
             sub_txt_dir = out_txt_dir.format(mid_dir, speaker)
             txt_lookup_str = os.path.join(sub_txt_dir, '*.txt')
             for txt_file_path in glob.glob(txt_lookup_str):
@@ -69,4 +73,4 @@ def run_detach(data_dir: str, out_dir: str, target_txt: str = 'normalized', is_c
 
 
 if __name__ == '__main__':
-    fire.Fire(run_detach)
+    fire.Fire(fetch_structure)

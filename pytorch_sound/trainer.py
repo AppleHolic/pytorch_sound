@@ -12,7 +12,7 @@ from typing import Tuple, Dict, Any
 from tensorboardX import SummaryWriter
 from collections import defaultdict
 from pytorch_sound.settings import SAMPLE_RATE
-from pytorch_sound.utils.commons import get_loadable_checkpoint, tprint
+from pytorch_sound.utils.commons import get_loadable_checkpoint, log
 from pytorch_sound.utils.tensor import to_device, to_numpy
 
 
@@ -30,9 +30,9 @@ class LogType(enum.Enum):
 
 class Trainer:
 
-    def __init__(self, model: nn.Module, optimizer,
+    def __init__(self, model: nn.Module, optimizer: torch.optim.Optimizer,
                  train_dataset, valid_dataset,
-                 max_step: int, valid_max_step: int, save_interval: int,
+                 max_step: int, valid_max_step: int, save_interval: int, log_interval: int,
                  save_dir: str, save_prefix: str = '',
                  grad_clip: float = 0.0, grad_norm: float = 0.0,
                  pretrained_path: str = None, sr: int = None):
@@ -46,7 +46,7 @@ class Trainer:
 
         # logging
         n_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
-        tprint('Model {} was loaded. Total {} params.'.format(self.model.__class__.__name__, n_params))
+        log('Model {} was loaded. Total {} params.'.format(self.model.__class__.__name__, n_params))
 
         self.dataset = dict()
         self.dataset['train'] = self.repeat(train_dataset)
@@ -60,9 +60,20 @@ class Trainer:
             self.sr = SAMPLE_RATE
         self.max_step = max_step
         self.save_interval = save_interval
+        self.log_interval = log_interval
+        self.save_dir = save_dir
+        self.save_prefix = save_prefix
         self.grad_clip = grad_clip
         self.grad_norm = grad_norm
         self.valid_max_step = valid_max_step
+
+        # make dirs
+        self.log_dir = os.path.join(save_dir, 'logs', self.save_prefix)
+        self.model_dir = os.path.join(save_dir, 'models')
+        os.makedirs(self.log_dir, exist_ok=True)
+        os.makedirs(self.model_dir, exist_ok=True)
+
+        self.writer = SummaryWriter(log_dir=self.log_dir, flush_secs=10)
 
         # load previous checkpoint
         # set seed
@@ -76,29 +87,18 @@ class Trainer:
             torch.cuda.manual_seed(self.seed)
 
         # load pretrained model
-        if self.step == 0 and pretrained_path is not None:
+        if self.step == 0 and pretrained_path:
             self.load_pretrained_model()
 
-        # tensorboard logging path
-        self.save_dir = save_dir
-        self.save_prefix = save_prefix
-
-        # make dirs
-        self.log_dir = os.path.join(save_dir, 'logs')
-        self.model_dir = os.path.join(save_dir, 'models')
-        os.makedirs(self.log_dir, exist_ok=True)
-        os.makedirs(self.model_dir, exist_ok=True)
-
-        self.writer = SummaryWriter(log_dir=self.log_dir, flush_secs=10)
-
         # valid loss
-        self.best_valid_loss = float(1e+5)
-        self.save_valid_loss = float(1e+5)
+        self.best_valid_loss = np.finfo(np.float32).max
+        self.save_valid_loss = np.finfo(np.float32).max
 
     @abc.abstractmethod
-    def forward(self, *inputs) -> Tuple[torch.Tensor, Dict]:
+    def forward(self, *inputs, is_logging: bool = False) -> Tuple[torch.Tensor, Dict]:
         """
         :param inputs: Loaded Data Points from Speech Loader
+        :param is_logging: log or not
         :return: Loss Tensor, Log Dictionary
         """
         raise NotImplemented
@@ -112,21 +112,24 @@ class Trainer:
                 self.step = i
 
                 # logging
-                if i % self.save_interval:
-                    tprint('------------- TRAIN step : %d -------------' % i)
+                if i % self.save_interval == 0:
+                    log('------------- TRAIN step : %d -------------' % i)
 
                 # do training step
+                self.model.train()
                 self.train_step(i)
 
                 # save model
                 if i % self.save_interval == 0:
-                    # do validation first
+                    log('------------- VALID step : %d -------------' % i)
+                    # valid
+                    self.model.eval()
                     self.valid_step(i)
                     # save model checkpoint file
                     self.save(i)
 
         except KeyboardInterrupt:
-            tprint('Train is canceled !!')
+            log('Train is canceled !!')
 
     def get_data(self, set_name: str) -> Tuple[torch.Tensor]:
         return to_device(next(self.dataset[set_name]))
@@ -163,16 +166,16 @@ class Trainer:
         return loss
 
     def valid_step(self, step: int) -> torch.Tensor:
-        # switch to evaluation mode
-        self.model.eval()
 
-        loss, stat = 0., defaultdict(float)
+        loss = 0.
+        stat = defaultdict(float)
+
         for i in range(self.valid_max_step):
 
             # forward model
             with torch.no_grad():
-                loss_this, meta = self.forward(*self.get_data('valid'), True)
-                loss += loss_this
+                batch_loss, meta = self.forward(*self.get_data('valid'), True)
+                loss += batch_loss
 
             # update stat
             for key, (value, log_type) in meta.items():
@@ -203,14 +206,11 @@ class Trainer:
         msg = 'step {} / total stat'.format(step)
         for key, value in sorted(stat.items()):
             msg += '\t{}: {:.6f}'.format(key, value)
-        tprint(msg)
+        log(msg)
 
         # tensor board logging of scalar stat
         for key, value in stat.items():
             self.writer.add_scalar('valid/{}'.format(key), value, global_step=step)
-
-        # switch to training mode
-        self.model.train()
 
     @property
     def save_name(self):
@@ -236,27 +236,31 @@ class Trainer:
             if 'seed' in state_dict:
                 self.seed = state_dict['seed']
             # load model
-            self.model.load_state_dict(get_loadable_checkpoint(state_dict['model']))
+            if isinstance(self.model, nn.DataParallel):
+                self.model.module.load_state_dict(get_loadable_checkpoint(state_dict['model']))
+            else:
+                self.model.load_state_dict(get_loadable_checkpoint(state_dict['model']))
             if load_optim:
                 self.optimizer.load_state_dict(state_dict['optim'])
             self.step = state_dict['step']
-            tprint('checkpoint \'{}\' is loaded. previous step={}'.format(latest_file, self.step))
+            log('checkpoint \'{}\' is loaded. previous step={}'.format(latest_file, self.step))
         else:
-            tprint('No any checkpoint in {}. Loading network skipped.'.format(save_path))
+            log('No any checkpoint in {}. Loading network skipped.'.format(save_path))
 
     def save(self, step: int):
 
         # save latest
+        state_dict = get_loadable_checkpoint(self.model.state_dict())
         state_dict_inf = {
             'step': step,
-            'model': self.model.state_dict(),
+            'model': state_dict,
             'seed': self.seed,
         }
 
         # train
         state_dict_train = {
             'step': step,
-            'model': self.model.state_dict(),
+            'model': state_dict,
             'optim': self.optimizer.state_dict(),
             'pretrained_step': step,
             'seed': self.seed
@@ -270,11 +274,11 @@ class Trainer:
         torch.save(state_dict_train, os.path.join(save_path, 'step_{:06d}.chkpt'.format(step)))
 
         # save for inference
-        save_path = os.path.join(self.project_path, 'model', save_name + '.latest.chkpt')
+        save_path = os.path.join(self.model_dir, save_name + '.latest.chkpt')
         torch.save(state_dict_inf, save_path)
 
         # logging
-        tprint('step %d / saved model.' % step)
+        log('step %d / saved model.' % step)
 
     def load_pretrained_model(self):
         assert os.path.exists(self.pretrained_trained), 'You must define pretrained path!'
@@ -286,7 +290,7 @@ class Trainer:
         for key, (value, log_type) in sorted(meta.items()):
             if log_type == LogType.SCALAR:
                 msg += '\t{}: {:.6f}'.format(key, value)
-        tprint(msg)
+        log(msg)
 
     def tensorboard_log(self, tag: str, meta: Dict[str, Any], step: int):
         for key, (value, log_type) in meta.items():

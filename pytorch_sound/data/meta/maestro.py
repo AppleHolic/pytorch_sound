@@ -25,7 +25,7 @@ class MaestroMeta(MetaFrame):
         self.max_wav_rate = max_wav_rate
 
     @property
-    def columns(self):
+    def columns(self) -> List[str]:
         return ['audio_filename', 'midi_filename', 'duration']
 
     @property
@@ -33,12 +33,12 @@ class MaestroMeta(MetaFrame):
         return self._meta
 
     @property
-    def frame_file_names(self) -> List[str]:
-        return ['maestro-v1.0.0.json', 'maestro-v1.0.0-train.json', 'maestro-v1.0.0-valid.json']
-
-    @property
     def sr(self) -> int:
         return 44100
+
+    @property
+    def frame_file_names(self) -> List[str]:
+        return ['maestro-v1.0.0.json', 'maestro-v1.0.0-train.json', 'maestro-v1.0.0-valid.json']
 
     def __len__(self):
         return len(self._meta)
@@ -70,7 +70,7 @@ class MaestroMeta(MetaFrame):
 
 
 def get_datasets(meta_dir: str, batch_size: int, num_workers: int,
-                 fix_len: float = 0.0, skip_audio: bool = False) -> Tuple[SpeechDataLoader]:
+                 fix_len: int = 0, skip_audio: bool = False) -> Tuple[SpeechDataLoader, SpeechDataLoader]:
 
     assert os.path.isdir(meta_dir), '{} is not valid directory path!'
 
