@@ -12,7 +12,7 @@ from typing import Tuple, Dict, Any
 from tensorboardX import SummaryWriter
 from collections import defaultdict
 from pytorch_sound.settings import SAMPLE_RATE
-from pytorch_sound.utils.commons import get_loadable_checkpoint, log, log
+from pytorch_sound.utils.commons import get_loadable_checkpoint, log
 from pytorch_sound.utils.tensor import to_device, to_numpy
 
 
