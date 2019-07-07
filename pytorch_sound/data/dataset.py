@@ -39,12 +39,13 @@ class SpeechDataset(Dataset):
 
     def handle_fields(self, meta_item) -> List:
         results = []
+        mask = None
+
         for col in self.meta_frame.process_columns:
             if col == MetaType.audio_filename.name:
                 item = self.load_audio(meta_item[col])
-                if self.audio_mask:
-                    results.append(item)
-                    item = np.ones_like(item)
+                if self.audio_mask and not mask:
+                    mask = np.ones_like(item)
             elif col == MetaType.midi_filename.name:
                 item = self.load_midi(meta_item[col])
             elif col == MetaType.speaker.name:
@@ -54,6 +55,10 @@ class SpeechDataset(Dataset):
             else:
                 raise NotImplementedError('{} is not implemented !'.format(col.value))
             results.append(item)
+
+        if mask:
+            results.append(mask)
+
         return results
 
     def load_audio(self, file_path: str) -> List[np.ndarray]:
