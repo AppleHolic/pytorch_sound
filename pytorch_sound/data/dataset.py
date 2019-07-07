@@ -93,7 +93,7 @@ class BucketRandomBatchSampler(Sampler):
     It chunks samples into buckets and sample bucket id randomly for each minibatch.
     """
 
-    def __init__(self, data_source: Dataset, n_buckets: int, batch_size: int):
+    def __init__(self, data_source: Dataset, n_buckets: int, batch_size: int, skip_last_bucket: bool = False):
         self.n_buckets = n_buckets
         self.data_size = len(data_source)
         self.batch_size = batch_size
@@ -104,7 +104,7 @@ class BucketRandomBatchSampler(Sampler):
             raise ValueError("the num of buckets has to be a positive value.")
 
         self.buckets = [list(range(i * self.bucket_size, (i + 1) * self.bucket_size))
-                        for i in range(self.n_buckets)]
+                        for i in range(self.n_buckets - int(skip_last_bucket))]
 
     def __iter__(self):
         # copy buckets and shuffle indices
@@ -128,12 +128,12 @@ class BucketRandomBatchSampler(Sampler):
 class SpeechDataLoader(DataLoader):
 
     def __init__(self, dataset: SpeechDataset, batch_size: int, num_workers: int,
-                 n_buckets: int = 10, is_bucket: bool = True):
+                 n_buckets: int = 10, is_bucket: bool = True, skip_last_bucket: bool = False):
 
         batch_sampler = None
         if is_bucket:
             batch_sampler = BucketRandomBatchSampler(
-                dataset, n_buckets=n_buckets, batch_size=batch_size)
+                dataset, n_buckets=n_buckets, batch_size=batch_size, skip_last_bucket=skip_last_bucket)
         # call super
         super().__init__(dataset,
                          num_workers=num_workers,

@@ -112,7 +112,7 @@ class Trainer:
                 self.step = i
 
                 # logging
-                if i % self.save_interval == 0:
+                if i % self.save_interval == 1:
                     log('------------- TRAIN step : %d -------------' % i)
 
                 # do training step

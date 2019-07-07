@@ -2,7 +2,10 @@ import torch.nn as nn
 import librosa
 import torch
 from torch_stft import stft
-from torchaudio.transforms import MelSpectrogram as MelJit
+try:
+    from torchaudio.transforms import MelSpectrogram as MelJit
+except ImportError:
+    MelJit = None
 
 
 class MelSpectrogram(nn.Module):
@@ -11,6 +14,7 @@ class MelSpectrogram(nn.Module):
                  hop_length: int, min_db: float, max_db: float,
                  mel_min: float = 0., mel_max: float = None):
         super().__init__()
+        self.mel_size = mel_size
         self.min_db = min_db
         self.max_db = max_db
 
@@ -21,7 +25,7 @@ class MelSpectrogram(nn.Module):
         self.register_buffer('mel_filter',
                              torch.tensor(mel_filter, dtype=torch.float))
 
-    def forward(self, wav: torch.tensor) -> torch.tensor:
+    def forward(self, wav: torch.tensor, log_offset: float = 1e-6) -> torch.tensor:
         mag, phase = self.stft.transform(wav)
 
         # apply mel filter
@@ -31,9 +35,44 @@ class MelSpectrogram(nn.Module):
         mel = mel.clamp(self.min_db, self.max_db)
 
         # to log-space
-        mel = torch.log(mel)
+        mel = torch.log(mel + log_offset)
 
         return mel
+
+
+class MelToMFCC(nn.Module):
+
+    def __init__(self, n_mfcc: int, mel_size: int):
+        super().__init__()
+        self.n_mfcc = n_mfcc
+        # register mfcc dct filter
+        self.register_buffer('mfcc_filter',
+                             torch.FloatTensor(librosa.filters.dct(self.n_mfcc, mel_size)).unsqueeze(0))
+
+    def forward(self, mel_spec: torch.tensor) -> torch.tensor:
+        assert len(mel_spec.size()) == 3
+        return torch.matmul(self.mfcc_filter, mel_spec)
+
+
+class MFCC(nn.Module):
+
+    def __init__(self, sample_rate: int, mel_size: int, n_fft: int, win_length: int, n_mfcc: int,
+                 hop_length: int, min_db: float, max_db: float,
+                 mel_min: float = 0., mel_max: float = None):
+        super().__init__()
+        self.n_mfcc = n_mfcc
+        self.mel_func = MelSpectrogram(
+            sample_rate, mel_size, n_fft, win_length, hop_length, min_db, max_db,
+            mel_min, mel_max
+        )
+        # register mfcc dct filter
+        self.register_buffer('mfcc_filter',
+                             torch.FloatTensor(librosa.filters.dct(self.n_mfcc, mel_size)).unsqueeze(0))
+
+    def forward(self, wav: torch.tensor) -> torch.tensor:
+        assert len(wav.size()) == 3
+        mel_spectrogram = self.mel_func(wav)
+        return torch.matmul(self.mfcc_filter, mel_spectrogram)
 
 
 #
@@ -45,6 +84,9 @@ class MelSpectrogramJIT(nn.Module):
                  hop_length: int, min_db: float, max_db: float,
                  mel_min: float = 0., mel_max: float = None):
         super().__init__()
+        if MelJit is None:
+            raise NotImplementedError('You should install torchaudio to use it!')
+
         self.mel_func = MelJit(sr=sample_rate, n_fft=n_fft, ws=win_length, hop=hop_length, f_min=float(mel_min),
                                f_max=float(mel_max), pad=win_length // 2, n_mels=mel_size, window=torch.hann_window,
                                wkwargs=None)

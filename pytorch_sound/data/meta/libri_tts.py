@@ -155,7 +155,7 @@ def preprocess_text(args) -> List:
 
 def get_datasets(meta_dir: str, batch_size: int, num_workers: int,
                  fix_len: int = 0, skip_audio: bool = False,
-                 audio_mask: bool = False) -> Tuple[SpeechDataLoader, SpeechDataLoader]:
+                 audio_mask: bool = False, skip_last_bucket: bool = True) -> Tuple[SpeechDataLoader, SpeechDataLoader]:
 
     assert os.path.isdir(meta_dir), '{} is not valid directory path!'
 
@@ -170,8 +170,10 @@ def get_datasets(meta_dir: str, batch_size: int, num_workers: int,
     valid_dataset = SpeechDataset(valid_meta, fix_len=fix_len, skip_audio=skip_audio, audio_mask=audio_mask)
 
     # create data loader
-    train_loader = SpeechDataLoader(train_dataset, batch_size=batch_size, num_workers=num_workers)
-    valid_loader = SpeechDataLoader(valid_dataset, batch_size=batch_size, num_workers=num_workers)
+    train_loader = SpeechDataLoader(train_dataset, batch_size=batch_size,
+                                    num_workers=num_workers, skip_last_bucket=skip_last_bucket)
+    valid_loader = SpeechDataLoader(valid_dataset, batch_size=batch_size,
+                                    num_workers=num_workers, skip_last_bucket=skip_last_bucket)
 
     return train_loader, valid_loader
 
