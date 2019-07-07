@@ -40,6 +40,22 @@ class MelSpectrogram(nn.Module):
         return mel
 
 
+class MelMasker(nn.Module):
+
+    def __init__(self, win_length: int, hop_length: int):
+        super().__init__()
+        self.conv = nn.Conv1d(
+            1, 1, win_length, stride=hop_length, padding=win_length // 2, bias=False).cuda()
+        torch.nn.init.constant_(self.conv.weight, 1.)
+
+    def forward(self, wav_mask):
+        # make mask
+        with torch.no_grad():
+            mel_mask = self.conv(wav_mask.float().unsqueeze(1)).squeeze(1)
+            mel_mask = (mel_mask > 0).float()
+        return mel_mask
+
+
 class MelToMFCC(nn.Module):
 
     def __init__(self, n_mfcc: int, mel_size: int):

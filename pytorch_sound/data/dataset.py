@@ -45,7 +45,7 @@ class SpeechDataset(Dataset):
             type_, name = col
             if type_ == MetaType.AUDIO:
                 item = self.load_audio(meta_item[name])
-                if self.audio_mask and not mask:
+                if self.audio_mask and mask is None:
                     mask = np.ones_like(item)
             elif type_ == MetaType.MIDI:
                 item = self.load_midi(meta_item[name])
@@ -57,7 +57,7 @@ class SpeechDataset(Dataset):
                 raise NotImplementedError('{} is not implemented !'.format(name))
             results.append(item)
 
-        if mask:
+        if mask is not None:
             results.append(mask)
 
         return results
