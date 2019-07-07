@@ -6,7 +6,7 @@ from tqdm import tqdm
 from itertools import repeat
 
 from pytorch_sound.data.dataset import SpeechDataset, SpeechDataLoader
-from pytorch_sound.data.meta import MetaFrame
+from pytorch_sound.data.meta import MetaFrame, MetaType
 from pytorch_sound.data.meta.commons import split_train_val_frame
 
 
@@ -25,8 +25,9 @@ class LibriTTSMeta(MetaFrame):
         self._num_speakers = None
 
     @property
-    def columns(self) -> List[str]:
-        return ['audio_filename', 'speaker', 'duration', 'text']
+    def columns(self) -> List[Tuple[MetaType, str]]:
+        return [(MetaType.AUDIO, 'audio_filename'), (MetaType.SCALAR, 'speaker'),
+                (MetaType.META, 'duration'), (MetaType.TEXT, 'text')]
 
     @property
     def meta(self) -> pd.DataFrame:

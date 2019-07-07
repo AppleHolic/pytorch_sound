@@ -24,7 +24,7 @@ class SpeechDataset(Dataset):
         self.cols = self.meta_frame.process_columns
         self.audio_mask = audio_mask
         if skip_audio:
-            self.cols = [x for x in self.cols if x != MetaType.audio_filename.name]
+            self.cols = [(t, name) for (t, name) in self.cols if t != MetaType.AUDIO]
 
         # assign read function
         self.read_wav = self.default_read_wav
@@ -42,18 +42,19 @@ class SpeechDataset(Dataset):
         mask = None
 
         for col in self.meta_frame.process_columns:
-            if col == MetaType.audio_filename.name:
-                item = self.load_audio(meta_item[col])
+            type_, name = col
+            if type_ == MetaType.AUDIO:
+                item = self.load_audio(meta_item[name])
                 if self.audio_mask and not mask:
                     mask = np.ones_like(item)
-            elif col == MetaType.midi_filename.name:
-                item = self.load_midi(meta_item[col])
-            elif col == MetaType.speaker.name:
-                item = int(meta_item[col])
-            elif col == MetaType.text.name:
-                item = self.load_txt(meta_item[col])
+            elif type_ == MetaType.MIDI:
+                item = self.load_midi(meta_item[name])
+            elif type_ == MetaType.SCALAR:
+                item = int(meta_item[name])
+            elif type_ == MetaType.TEXT:
+                item = self.load_txt(meta_item[name])
             else:
-                raise NotImplementedError('{} is not implemented !'.format(col.value))
+                raise NotImplementedError('{} is not implemented !'.format(name))
             results.append(item)
 
         if mask:

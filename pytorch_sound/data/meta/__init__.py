@@ -6,27 +6,32 @@ import abc
 import os
 import re
 import pandas as pd
-from typing import List
+from typing import List, Tuple
 from itertools import repeat
     
 
 from pytorch_sound.data.meta.commons import get_wav_duration
 from pytorch_sound.utils.commons import go_multiprocess
 
-MetaType = enum.Enum('MetaType', 'audio_filename midi_filename speaker duration text')
+
+class MetaType(enum.Enum):
+    AUDIO: int = 1
+    SCALAR: int = 2
+    MIDI: int = 3
+    TEXT: int = 4
+    META: int = 5
 
 
 class MetaFrame:
 
     @property
     def process_columns(self) -> List[str]:
-        fields = [MetaType.audio_filename, MetaType.midi_filename, MetaType.speaker, MetaType.text]
-        vals = [x.name for x in fields]
-        return [col for col in self.columns if col in fields or col in vals]
+        target_types = [MetaType.AUDIO, MetaType.SCALAR, MetaType.MIDI, MetaType.TEXT]
+        return [(type_, name) for (type_, name) in self.columns if type_ in target_types]
 
     @property
     @abc.abstractmethod
-    def columns(self) -> List[MetaType]:
+    def columns(self) -> List[Tuple[MetaType, str]]:
         raise NotImplementedError('You must define columns !')
 
     @property

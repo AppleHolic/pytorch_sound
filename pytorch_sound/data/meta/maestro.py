@@ -2,7 +2,7 @@ import os
 import pandas as pd
 from typing import List, Tuple
 
-from pytorch_sound.data.meta import MetaFrame
+from pytorch_sound.data.meta import MetaFrame, MetaType
 from pytorch_sound.data.meta.commons import split_train_val_frame
 from pytorch_sound.data.dataset import SpeechDataset, SpeechDataLoader
 
@@ -26,7 +26,7 @@ class MaestroMeta(MetaFrame):
 
     @property
     def columns(self) -> List[str]:
-        return ['audio_filename', 'midi_filename', 'duration']
+        return [(MetaType.AUDIO, 'audio_filename'), (MetaType.MIDI, 'midi_filename'), (MetaType.META, 'duration')]
 
     @property
     def meta(self) -> pd.DataFrame:

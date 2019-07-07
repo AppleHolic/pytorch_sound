@@ -3,9 +3,11 @@ import os
 import glob
 
 from tqdm import tqdm
-from typing import List
+from typing import List, Tuple
 from collections import defaultdict
-from pytorch_sound.data.meta import MetaFrame
+
+from pytorch_sound.data.dataset import SpeechDataLoader, SpeechDataset
+from pytorch_sound.data.meta import MetaFrame, MetaType
 
 
 class VoiceBankMeta(MetaFrame):
@@ -24,7 +26,8 @@ class VoiceBankMeta(MetaFrame):
 
     @property
     def columns(self) -> List[str]:
-        return ['noise_filename', 'clean_filename', 'speaker', 'duration', 'text']
+        return [(MetaType.AUDIO, 'noise_filename'), (MetaType.AUDIO, 'clean_filename'), (MetaType.SCALAR, 'speaker'),
+                (MetaType.META, 'duration'), (MetaType.TEXT, 'text')]
 
     @property
     def meta(self) -> pd.DataFrame:
@@ -104,3 +107,28 @@ class VoiceBankMeta(MetaFrame):
         # save data frames
         print('Save meta frames on {}'.format(' '.join(self.frame_file_names)))
         self.save_meta(self.frame_file_names, self.meta_path, self._meta, train_meta, val_meta)
+
+
+def get_datasets(meta_dir: str, batch_size: int, num_workers: int,
+                 fix_len: int = 0, skip_audio: bool = False,
+                 audio_mask: bool = False) -> Tuple[SpeechDataLoader, SpeechDataLoader]:
+
+    assert os.path.isdir(meta_dir), '{} is not valid directory path!'
+
+    train_file, valid_file = VoiceBankMeta.frame_file_names[1:]
+
+    # load meta file
+    train_meta = VoiceBankMeta(os.path.join(meta_dir, train_file))
+    valid_meta = VoiceBankMeta(os.path.join(meta_dir, valid_file))
+
+    # create dataset
+    train_dataset = SpeechDataset(train_meta, fix_len=fix_len, skip_audio=skip_audio, audio_mask=audio_mask)
+    valid_dataset = SpeechDataset(valid_meta, fix_len=fix_len, skip_audio=skip_audio, audio_mask=audio_mask)
+
+    # create data loader
+    train_loader = SpeechDataLoader(train_dataset, batch_size=batch_size,
+                                    num_workers=num_workers, skip_last_bucket=False)
+    valid_loader = SpeechDataLoader(valid_dataset, batch_size=batch_size,
+                                    num_workers=num_workers, skip_last_bucket=False)
+
+    return train_loader, valid_loader
