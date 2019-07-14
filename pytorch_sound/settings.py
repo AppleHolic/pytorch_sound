@@ -29,7 +29,7 @@ MIN_TXT_RATE: float = 0
 NUM_WORKERS: int = multiprocessing.cpu_count() // 2
 
 
-# vocabulary
+# english vocabulary
 IDX_TO_ENG: List[str] = symbols
 ENG_TO_IDX: Dict[str, int] = {x: i + 1 for i, x in enumerate(IDX_TO_ENG[1:])}
 ENG_VOCA_SIZE: int = len(IDX_TO_ENG)
