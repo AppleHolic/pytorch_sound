@@ -1,7 +1,7 @@
 import glob
 import os
 import fire
-from typing import Any, Tuple
+from typing import Tuple
 from ffmpeg_normalize import FFmpegNormalize
 from pytorch_sound import settings
 from pytorch_sound.data.meta.libri_tts import LibriTTSMeta

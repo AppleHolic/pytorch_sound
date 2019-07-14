@@ -14,20 +14,23 @@ from pytorch_sound.data.meta import MetaFrame, MetaType
 
 class SpeechDataset(Dataset):
 
-    def __init__(self, meta_frame: MetaFrame, fix_len: int = 0, skip_audio: bool = False, audio_mask: bool = False):
+    def __init__(self, meta_frame: MetaFrame, fix_len: int = 0, fix_shuffle: bool = False,
+                 skip_audio: bool = False, audio_mask: bool = False):
         """
         :param meta_frame: Data Frame with dataset info
         :param kwargs: attributes to load data
         """
         self.meta_frame = meta_frame
         self.fix_len = fix_len
+        self.fix_shuffle = fix_shuffle
         self.cols = self.meta_frame.process_columns
         self.audio_mask = audio_mask
         if skip_audio:
             self.cols = [(t, name) for (t, name) in self.cols if t != MetaType.AUDIO]
 
         # assign read function
-        self.read_wav = self.default_read_wav
+        # self.read_wav = self.default_read_wav
+        self.read_wav = librosa.load
 
     def default_read_wav(self, path: str, sr: int = None):
         sr, wav = read_wav(path)
@@ -40,11 +43,17 @@ class SpeechDataset(Dataset):
     def handle_fields(self, meta_item) -> List:
         results = []
         mask = None
+        start_idx = -1
 
         for col in self.meta_frame.process_columns:
             type_, name = col
             if type_ == MetaType.AUDIO:
                 item = self.load_audio(meta_item[name])
+                # random crop
+                if self.fix_len:
+                    if start_idx == -1 or self.fix_shuffle:
+                        start_idx = np.random.randint(0, max(1, len(item) - self.fix_len + 1))
+                    item = item[start_idx:start_idx + self.fix_len]
                 if self.audio_mask and mask is None:
                     mask = np.ones_like(item)
             elif type_ == MetaType.MIDI:
@@ -69,10 +78,6 @@ class SpeechDataset(Dataset):
             wav, sr = self.read_wav(file_path, sr=None)
         assert sr == self.meta_frame.sr, \
             'sample rate miss match.\n {}\t {} in {}'.format(self.meta_frame.sr, sr, file_path)
-        # random crop
-        if self.fix_len:
-            start_idx = np.random.randint(0, max(1, len(wav) - self.fix_len + 1))
-            wav = wav[start_idx:start_idx + self.fix_len]
         return wav
 
     @staticmethod

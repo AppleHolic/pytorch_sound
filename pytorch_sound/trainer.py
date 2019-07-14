@@ -116,14 +116,14 @@ class Trainer:
 
                 # do training step
                 self.model.train()
-                self.train_step(i)
+                self.train(i)
 
                 # save model
                 if i % self.save_interval == 0:
                     log('------------- VALID step : %d -------------' % i)
                     # valid
                     self.model.eval()
-                    self.valid_step(i)
+                    self.validate(i)
                     # save model checkpoint file
                     self.save(i)
 
@@ -139,7 +139,10 @@ class Trainer:
             torch.nn.utils.clip_grad_norm_([p for p in self.model.parameters() if p.requires_grad],
                                            self.grad_norm)
 
-    def train_step(self, step: int) -> torch.Tensor:
+    def train(self, step: int) -> torch.Tensor:
+
+        # update model
+        self.optimizer.zero_grad()
 
         # flag for logging
         log_flag = step % self.log_interval == 0
@@ -147,8 +150,16 @@ class Trainer:
         # forward model
         loss, meta = self.forward(*to_device(next(self.train_dataset)), log_flag)
 
-        # update model
-        self.optimizer.zero_grad()
+        # check loss nan
+        if loss != loss:
+            log('{} cur step NAN is occured'.format(step))
+            return
+
+        if step > 1:
+            for name, p in self.model.named_parameters():
+                if p.grad is None:
+                    log('{} grad is NAN'.format(name))
+
         loss.backward()
         self.clip_grad()
         self.optimizer.step()
@@ -161,7 +172,7 @@ class Trainer:
             self.tensorboard_log('train', meta, step)
         return loss
 
-    def valid_step(self, step: int):
+    def validate(self, step: int):
 
         loss = 0.
         stat = defaultdict(float)

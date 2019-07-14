@@ -1,5 +1,5 @@
 numpy == 1.15.3
-librosa
+librosa == 0.7.0
 soundfile
 torch
 tensorboardX
