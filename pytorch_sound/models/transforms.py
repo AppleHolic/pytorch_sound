@@ -5,6 +5,8 @@ import librosa
 import numpy as np
 from scipy.signal import get_window
 from librosa.util import pad_center
+from typing import Tuple
+
 try:
     from torchaudio.transforms import MelSpectrogram as MelJit
 except ImportError:
@@ -17,8 +19,8 @@ except ImportError:
 #
 class STFT(nn.Module):
 
-    def __init__(self, filter_length=1024, hop_length=512, win_length=None,
-                 window='hann'):
+    def __init__(self, filter_length: int = 1024, hop_length: int = 512, win_length: int = None,
+                 window: str = 'hann'):
         super().__init__()
         self.filter_length = filter_length
         self.hop_length = hop_length
@@ -52,7 +54,7 @@ class STFT(nn.Module):
         self.register_buffer('forward_basis', forward_basis)
         self.register_buffer('inverse_basis', inverse_basis)
 
-    def transform(self, wav):
+    def transform(self, wav: torch.tensor) -> Tuple[torch.tensor, torch.tensor]:
         # reflect padding
         wav = wav.unsqueeze(1).unsqueeze(1)
         wav = F.pad(
@@ -70,7 +72,7 @@ class STFT(nn.Module):
 
         return torch.sqrt(real_part ** 2 + imag_part ** 2), torch.atan2(imag_part.data, real_part.data)
 
-    def inverse(self, magnitude, phase, eps=1e-9):
+    def inverse(self, magnitude: torch.tensor, phase: torch.tensor, eps: float = 1e-9) -> torch.tensor:
         conc = torch.cat(
             [magnitude * torch.cos(phase), magnitude * torch.sin(phase)], dim=1)
 
@@ -141,11 +143,11 @@ class MelMasker(nn.Module):
             1, 1, win_length, stride=hop_length, padding=win_length // 2, bias=False).cuda()
         torch.nn.init.constant_(self.conv.weight, 1.)
 
-    def forward(self, wav_mask):
+    def forward(self, wav_mask: torch.tensor, mask_val: float = 0.0) -> torch.tensor:
         # make mask
         with torch.no_grad():
             mel_mask = self.conv(wav_mask.float().unsqueeze(1)).squeeze(1)
-            mel_mask = (mel_mask > 0).float()
+            mel_mask = (mel_mask != mask_val).float()
         return mel_mask
 
 
@@ -202,7 +204,7 @@ class MelSpectrogramJIT(nn.Module):
         self.min_db = min_db
         self.max_db = max_db
 
-    def forward(self, wav):
+    def forward(self, wav: torch.tensor) -> torch.tensor:
         # make mel
         melspec = self.mel_func(wav).transpose(1, 2)
 

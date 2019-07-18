@@ -10,3 +10,4 @@ pandas
 pretty_midi
 ffmpeg_normalize
 pytest
+tqdm

@@ -33,9 +33,9 @@ class Trainer:
     def __init__(self, model: nn.Module, optimizer: torch.optim.Optimizer,
                  train_dataset, valid_dataset,
                  max_step: int, valid_max_step: int, save_interval: int, log_interval: int,
-                 save_dir: str, save_prefix: str = '',
+                 save_dir: str, save_prefix: str = 'save',
                  grad_clip: float = 0.0, grad_norm: float = 0.0,
-                 pretrained_path: str = None, sr: int = None):
+                 pretrained_path: str = None, sr: int = None, scheduler: torch.optim.lr_scheduler._LRScheduler = None):
 
         # save project info
         self.pretrained_trained = pretrained_path
@@ -43,6 +43,7 @@ class Trainer:
         # model
         self.model = model
         self.optimizer = optimizer
+        self.scheduler = scheduler
 
         # logging
         n_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
@@ -91,6 +92,7 @@ class Trainer:
 
         # valid loss
         self.best_valid_loss = np.finfo(np.float32).max
+        self.cur_best_valid_loss = self.best_valid_loss
         self.save_valid_loss = np.finfo(np.float32).max
 
     @abc.abstractmethod
@@ -115,6 +117,8 @@ class Trainer:
                     log('------------- TRAIN step : %d -------------' % i)
 
                 # do training step
+                if self.scheduler is not None:
+                    self.scheduler.step(i)
                 self.model.train()
                 self.train(i)
 
@@ -129,6 +133,8 @@ class Trainer:
 
         except KeyboardInterrupt:
             log('Train is canceled !!')
+
+        return self.best_valid_loss
 
     def clip_grad(self):
         if self.grad_clip:
@@ -248,6 +254,8 @@ class Trainer:
                 self.model.load_state_dict(get_loadable_checkpoint(state_dict['model']))
             if load_optim:
                 self.optimizer.load_state_dict(state_dict['optim'])
+            if self.scheduler is not None:
+                self.scheduler.load_state_dict(state_dict['scheduler'])
             self.step = state_dict['step']
             log('checkpoint \'{}\' is loaded. previous step={}'.format(latest_file, self.step))
         else:
@@ -255,33 +263,34 @@ class Trainer:
 
     def save(self, step: int):
 
-        # save latest
+        # state dict
         state_dict = get_loadable_checkpoint(self.model.state_dict())
-        state_dict_latest = {
-            'step': step,
-            'model': state_dict,
-            'seed': self.seed,
-        }
 
         # train
-        state_dict_train = {
+        state_dict = {
             'step': step,
             'model': state_dict,
             'optim': self.optimizer.state_dict(),
             'pretrained_step': step,
             'seed': self.seed
         }
+        if self.scheduler is not None:
+            state_dict.update({
+                'scheduler': self.scheduler.state_dict()
+            })
 
         # save for training
         save_name = self.save_name
 
         save_path = os.path.join(self.model_dir, save_name)
         os.makedirs(save_path, exist_ok=True)
-        torch.save(state_dict_train, os.path.join(save_path, 'step_{:06d}.chkpt'.format(step)))
+        torch.save(state_dict, os.path.join(save_path, 'step_{:06d}.chkpt'.format(step)))
 
-        # save latest
-        save_path = os.path.join(self.model_dir, save_name + '.latest.chkpt')
-        torch.save(state_dict_latest, save_path)
+        # save best
+        if self.best_valid_loss != self.cur_best_valid_loss:
+            save_path = os.path.join(self.model_dir, save_name + '.best.chkpt')
+            torch.save(state_dict, save_path)
+            self.cur_best_valid_loss = self.best_valid_loss
 
         # logging
         log('step %d / saved model.' % step)

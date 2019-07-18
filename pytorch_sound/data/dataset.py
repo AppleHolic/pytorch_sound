@@ -105,6 +105,7 @@ class BucketRandomBatchSampler(Sampler):
     """
 
     def __init__(self, data_source: Dataset, n_buckets: int, batch_size: int, skip_last_bucket: bool = False):
+        # TODO: check bucket size is too small
         self.n_buckets = n_buckets
         self.data_size = len(data_source)
         self.batch_size = batch_size

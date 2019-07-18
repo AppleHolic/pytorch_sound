@@ -2,7 +2,7 @@
 # https://github.com/pytorch/fairseq/blob/master/fairseq/models/__init__.py
 import torch.nn as nn
 
-from typing import Callable
+from typing import Callable, Dict, Any
 from pytorch_sound.utils.training import parse_model_kwargs
 
 MODEL_REGISTRY = {}
@@ -11,9 +11,14 @@ ARCH_MODEL_INV_REGISTRY = {}
 ARCH_CONFIG_REGISTRY = {}
 
 
-def build_model(arch_name: str) -> nn.Module:
+def build_model(arch_name: str, extra_kwargs: Dict[str, Any] = None) -> nn.Module:
     cls = ARCH_MODEL_REGISTRY[arch_name]
     kwargs = parse_model_kwargs(cls, **ARCH_CONFIG_REGISTRY[arch_name]())
+    # extra kwargs fetch
+    if extra_kwargs:
+        for key, val in extra_kwargs.items():
+            if key in kwargs:
+                kwargs[key] = val
     return cls(**kwargs)
 
 

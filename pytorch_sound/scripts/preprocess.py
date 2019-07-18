@@ -3,8 +3,10 @@ import os
 import fire
 from typing import Tuple
 from ffmpeg_normalize import FFmpegNormalize
+from tqdm import tqdm
 from pytorch_sound import settings
 from pytorch_sound.data.meta.libri_tts import LibriTTSMeta
+from pytorch_sound.data.meta.vctk import VCTKMeta
 from pytorch_sound.data.meta.voice_bank import VoiceBankMeta
 from pytorch_sound.scripts.libri_tts.fetch import fetch_structure
 from pytorch_sound.utils.commons import go_multiprocess
@@ -127,6 +129,48 @@ class Processor:
         meta_dir = os.path.join(out_dir, 'meta')
         meta = LibriTTSMeta(meta_dir)
         meta.make_meta(out_dir, settings.MIN_WAV_RATE, settings.MAX_WAV_RATE, settings.MIN_TXT_RATE)
+
+    @staticmethod
+    def vctk(in_dir: str, out_dir: str):
+        # lookup files
+        print('lookup files...')
+        wave_file_list = glob.glob(os.path.join(in_dir, 'wavs', '*', '*.wav'))
+        txt_file_list = glob.glob(os.path.join(in_dir, 'txt', '*', '*.txt'))
+
+        # make output file path list
+        print('Make out file list...')
+        out_wav_list = []
+        for wav_file_path in wave_file_list:
+            spk, file_name = wav_file_path.split('/')[-2:]
+            out_wav_path = os.path.join(out_dir, spk, 'wav', file_name)
+            out_wav_list.append(out_wav_path)
+
+        out_txt_list = []
+        for txt_file_path in txt_file_list:
+            spk, file_name = txt_file_path.split('/')[-2:]
+            out_txt_path = os.path.join(out_dir, spk, 'txt', file_name)
+            out_txt_list.append(out_txt_path)
+
+        # make directories
+        print('Make directories...')
+        out_wav_dirs = list(set([os.path.dirname(out_wav_path) for out_wav_path in out_wav_list]))
+        out_txt_dirs = list(set([os.path.dirname(out_txt_path) for out_txt_path in out_txt_list]))
+
+        for d in tqdm(out_wav_dirs + out_txt_dirs):
+            if not os.path.exists(d):
+                os.makedirs(d)
+
+        # preprocess audio files
+        print('Start Audio Processing ...')
+        go_multiprocess(process_all, list(zip(wave_file_list, out_wav_list)))
+
+        # copy text files
+        go_multiprocess(read_and_write, list(zip(txt_file_list, out_txt_list)))
+
+        # make meta files
+        meta_dir = os.path.join(out_dir, 'meta')
+        meta = VCTKMeta(meta_dir)
+        meta.make_meta(out_dir, out_wav_list, out_txt_list)
 
 
 if __name__ == '__main__':
