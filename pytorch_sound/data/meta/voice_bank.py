@@ -25,7 +25,7 @@ class VoiceBankMeta(MetaFrame):
         self._num_speakers = None
 
     @property
-    def columns(self) -> List[str]:
+    def columns(self) -> List[Tuple[MetaType, str]]:
         return [(MetaType.AUDIO, 'noise_filename'), (MetaType.AUDIO, 'clean_filename'), (MetaType.SCALAR, 'speaker'),
                 (MetaType.META, 'duration'), (MetaType.TEXT, 'text')]
 

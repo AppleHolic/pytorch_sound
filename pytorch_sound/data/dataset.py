@@ -4,7 +4,7 @@ import torch
 import librosa
 import copy
 from scipy.io.wavfile import read as read_wav
-from typing import List
+from typing import List, Tuple, Callable
 from torch.utils.data import Dataset, DataLoader, Sampler
 from torch.utils.data.dataloader import default_collate
 from pytorch_sound.utils.sound import parse_midi
@@ -15,7 +15,7 @@ from pytorch_sound.data.meta import MetaFrame, MetaType
 class SpeechDataset(Dataset):
 
     def __init__(self, meta_frame: MetaFrame, fix_len: int = 0, fix_shuffle: bool = False,
-                 skip_audio: bool = False, audio_mask: bool = False):
+                 skip_audio: bool = False, audio_mask: bool = False, extra_features: List[Tuple[str, Callable]] = None):
         """
         :param meta_frame: Data Frame with dataset info
         :param kwargs: attributes to load data
@@ -25,6 +25,14 @@ class SpeechDataset(Dataset):
         self.fix_shuffle = fix_shuffle
         self.cols = self.meta_frame.process_columns
         self.audio_mask = audio_mask
+        self.extra_features = extra_features
+
+        if self.extra_features:
+            column_names = [name for _, name in self.meta_frame.columns]
+            assert all([name in column_names for name, _ in extra_features]), \
+                'Unmatched extra_feature name! {} {}'.format(str(column_names), str(extra_features))
+            self.target_idx_map = {name: idx for idx, (type_, name) in enumerate(self.meta_frame.process_columns)}
+
         if skip_audio:
             self.cols = [(t, name) for (t, name) in self.cols if t != MetaType.AUDIO]
 
@@ -66,6 +74,13 @@ class SpeechDataset(Dataset):
                 raise NotImplementedError('{} is not implemented !'.format(name))
             results.append(item)
 
+        if self.extra_features:
+            for ex in self.extra_features:
+                name, func = ex
+                item = results[self.target_idx_map[name]]
+                ex_feature = func(item)
+                results.append(ex_feature)
+
         if mask is not None:
             results.append(mask)
 
@@ -105,6 +120,7 @@ class BucketRandomBatchSampler(Sampler):
     """
 
     def __init__(self, data_source: Dataset, n_buckets: int, batch_size: int, skip_last_bucket: bool = False):
+        assert len(data_source) > self.n_buckets * batch_size, 'Data size is too small to use bucket sampler !'
         # TODO: check bucket size is too small
         self.n_buckets = n_buckets
         self.data_size = len(data_source)
