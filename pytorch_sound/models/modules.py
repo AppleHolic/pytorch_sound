@@ -6,7 +6,7 @@ import torch.nn.functional as F
 class MultiHeadAttention(nn.Module):
 
     def __init__(self, hidden_dim: int, heads: int, dropout_rate: float):
-        super(MultiHeadAttention, self).__init__()
+        super().__init__()
         self.hidden_dim = hidden_dim
         self.heads = heads
 
@@ -15,7 +15,10 @@ class MultiHeadAttention(nn.Module):
         self.linear = nn.Conv1d(self.hidden_dim,  self.hidden_dim, 1, bias=False)
 
         # dropout layer
-        self.drop_out = nn.Dropout(dropout_rate)
+        if 0 < dropout_rate < 1:
+            self.drop_out = nn.Dropout(dropout_rate)
+        else:
+            self.drop_out = None
 
     def forward(self, input: torch.tensor) -> torch.tensor:
         # TODO: for att_mask
@@ -30,7 +33,8 @@ class MultiHeadAttention(nn.Module):
         x = self.linear(x)
 
         # dropout
-        x = self.drop_out(x)
+        if self.drop_out is not None:
+            x = self.drop_out(x)
 
         return input + x, att
 
@@ -57,7 +61,7 @@ class MultiHeadAttention(nn.Module):
 class PointwiseFeedForward(nn.Module):
 
     def __init__(self, hidden_dim: int, dropout_rate: float):
-        super(PointwiseFeedForward, self).__init__()
+        super().__init__()
         self.hidden_dim = hidden_dim
 
         self.ff = nn.Sequential(
@@ -70,10 +74,17 @@ class PointwiseFeedForward(nn.Module):
         # self.norm = nn.BatchNorm1d(hidden_dim)
 
         # dropout layer
-        self.drop_out = nn.Dropout(dropout_rate)
+        if 0 < dropout_rate < 1:
+            self.drop_out = nn.Dropout(dropout_rate)
+        else:
+            self.drop_out = None
 
-    def forward(self, x: torch.tensor) -> torch.tensor:
-        return self.act(self.drop_out(self.ff(x)) + x)
+    def forward(self, input: torch.tensor) -> torch.tensor:
+        x = self.ff(input)
+        if self.drop_out is not None:
+            x = self.drop_out(x)
+
+        return self.act(x + input)
 
 
 class AttentionLayer(nn.Module):
