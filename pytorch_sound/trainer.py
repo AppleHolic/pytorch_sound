@@ -1,7 +1,6 @@
 import abc
 import glob
 import os
-import pathlib
 import torch.nn as nn
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,6 +12,7 @@ from tensorboardX import SummaryWriter
 from collections import defaultdict
 from pytorch_sound.settings import SAMPLE_RATE
 from pytorch_sound.utils.commons import get_loadable_checkpoint, log
+from pytorch_sound.utils.plots import imshow_to_buf, plot_to_buf
 from pytorch_sound.utils.tensor import to_device, to_numpy
 
 
@@ -33,9 +33,9 @@ class Trainer:
     def __init__(self, model: nn.Module, optimizer: torch.optim.Optimizer,
                  train_dataset, valid_dataset,
                  max_step: int, valid_max_step: int, save_interval: int, log_interval: int,
-                 save_dir: str, save_prefix: str = '',
+                 save_dir: str, save_prefix: str = 'save',
                  grad_clip: float = 0.0, grad_norm: float = 0.0,
-                 pretrained_path: str = None, sr: int = None):
+                 pretrained_path: str = None, sr: int = None, scheduler: torch.optim.lr_scheduler._LRScheduler = None):
 
         # save project info
         self.pretrained_trained = pretrained_path
@@ -43,14 +43,14 @@ class Trainer:
         # model
         self.model = model
         self.optimizer = optimizer
+        self.scheduler = scheduler
 
         # logging
         n_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         log('Model {} was loaded. Total {} params.'.format(self.model.__class__.__name__, n_params))
 
-        self.dataset = dict()
-        self.dataset['train'] = self.repeat(train_dataset)
-        self.dataset['valid'] = self.repeat(valid_dataset)
+        self.train_dataset = self.repeat(train_dataset)
+        self.valid_dataset = self.repeat(valid_dataset)
 
         # save parameters
         self.step = 0
@@ -92,6 +92,7 @@ class Trainer:
 
         # valid loss
         self.best_valid_loss = np.finfo(np.float32).max
+        self.cur_best_valid_loss = self.best_valid_loss
         self.save_valid_loss = np.finfo(np.float32).max
 
     @abc.abstractmethod
@@ -112,27 +113,28 @@ class Trainer:
                 self.step = i
 
                 # logging
-                if i % self.save_interval == 0:
+                if i % self.save_interval == 1:
                     log('------------- TRAIN step : %d -------------' % i)
 
                 # do training step
+                if self.scheduler is not None:
+                    self.scheduler.step(i)
                 self.model.train()
-                self.train_step(i)
+                self.train(i)
 
                 # save model
                 if i % self.save_interval == 0:
                     log('------------- VALID step : %d -------------' % i)
                     # valid
                     self.model.eval()
-                    self.valid_step(i)
+                    self.validate(i)
                     # save model checkpoint file
                     self.save(i)
 
         except KeyboardInterrupt:
             log('Train is canceled !!')
 
-    def get_data(self, set_name: str) -> Tuple[torch.Tensor]:
-        return to_device(next(self.dataset[set_name]))
+        return self.best_valid_loss
 
     def clip_grad(self):
         if self.grad_clip:
@@ -143,16 +145,27 @@ class Trainer:
             torch.nn.utils.clip_grad_norm_([p for p in self.model.parameters() if p.requires_grad],
                                            self.grad_norm)
 
-    def train_step(self, step: int) -> torch.Tensor:
+    def train(self, step: int) -> torch.Tensor:
+
+        # update model
+        self.optimizer.zero_grad()
 
         # flag for logging
         log_flag = step % self.log_interval == 0
 
         # forward model
-        loss, meta = self.forward(*self.get_data('train'), log_flag)
+        loss, meta = self.forward(*to_device(next(self.train_dataset)), log_flag)
 
-        # update model
-        self.optimizer.zero_grad()
+        # check loss nan
+        if loss != loss:
+            log('{} cur step NAN is occured'.format(step))
+            return
+
+        if step > 1:
+            for name, p in self.model.named_parameters():
+                if p.grad is None:
+                    log('{} grad is NAN'.format(name))
+
         loss.backward()
         self.clip_grad()
         self.optimizer.step()
@@ -165,7 +178,7 @@ class Trainer:
             self.tensorboard_log('train', meta, step)
         return loss
 
-    def valid_step(self, step: int) -> torch.Tensor:
+    def validate(self, step: int):
 
         loss = 0.
         stat = defaultdict(float)
@@ -174,7 +187,7 @@ class Trainer:
 
             # forward model
             with torch.no_grad():
-                batch_loss, meta = self.forward(*self.get_data('valid'), True)
+                batch_loss, meta = self.forward(*to_device(next(self.valid_dataset)), True)
                 loss += batch_loss
 
             # update stat
@@ -186,12 +199,11 @@ class Trainer:
             if (i + 1) % self.log_interval == 0:
                 self.console_log('valid', meta, i + 1)
 
-            if i == self.valid_max_step - 1:
-                meta_non_scalar = {
-                    key: (value, log_type) for key, (value, log_type) in meta.items()
-                    if not log_type == LogType.SCALAR
-                }
-                self.tensorboard_log('valid', meta_non_scalar, step)
+        meta_non_scalar = {
+            key: (value, log_type) for key, (value, log_type) in meta.items()
+            if not log_type == LogType.SCALAR
+        }
+        self.tensorboard_log('valid', meta_non_scalar, step)
 
         # averaging stat
         loss /= self.valid_max_step
@@ -242,6 +254,8 @@ class Trainer:
                 self.model.load_state_dict(get_loadable_checkpoint(state_dict['model']))
             if load_optim:
                 self.optimizer.load_state_dict(state_dict['optim'])
+            if self.scheduler is not None:
+                self.scheduler.load_state_dict(state_dict['scheduler'])
             self.step = state_dict['step']
             log('checkpoint \'{}\' is loaded. previous step={}'.format(latest_file, self.step))
         else:
@@ -249,33 +263,34 @@ class Trainer:
 
     def save(self, step: int):
 
-        # save latest
+        # state dict
         state_dict = get_loadable_checkpoint(self.model.state_dict())
-        state_dict_inf = {
-            'step': step,
-            'model': state_dict,
-            'seed': self.seed,
-        }
 
         # train
-        state_dict_train = {
+        state_dict = {
             'step': step,
             'model': state_dict,
             'optim': self.optimizer.state_dict(),
             'pretrained_step': step,
             'seed': self.seed
         }
+        if self.scheduler is not None:
+            state_dict.update({
+                'scheduler': self.scheduler.state_dict()
+            })
 
         # save for training
         save_name = self.save_name
 
         save_path = os.path.join(self.model_dir, save_name)
-        pathlib.Path(save_path).mkdir(parents=True, exist_ok=True)
-        torch.save(state_dict_train, os.path.join(save_path, 'step_{:06d}.chkpt'.format(step)))
+        os.makedirs(save_path, exist_ok=True)
+        torch.save(state_dict, os.path.join(save_path, 'step_{:06d}.chkpt'.format(step)))
 
-        # save for inference
-        save_path = os.path.join(self.model_dir, save_name + '.latest.chkpt')
-        torch.save(state_dict_inf, save_path)
+        # save best
+        if self.best_valid_loss != self.cur_best_valid_loss:
+            save_path = os.path.join(self.model_dir, save_name + '.best.chkpt')
+            torch.save(state_dict, save_path)
+            self.cur_best_valid_loss = self.best_valid_loss
 
         # logging
         log('step %d / saved model.' % step)
@@ -295,41 +310,16 @@ class Trainer:
     def tensorboard_log(self, tag: str, meta: Dict[str, Any], step: int):
         for key, (value, log_type) in meta.items():
             if log_type == LogType.IMAGE:
-                self.writer.add_image('{}/{}'.format(tag, key), self.imshow_to_buf(to_numpy(value)), global_step=step)
+                self.writer.add_image('{}/{}'.format(tag, key), imshow_to_buf(to_numpy(value)), global_step=step)
             elif log_type == LogType.AUDIO:
-                self.writer.add_audio('{}/{}'.format(tag, key), to_numpy(value), global_step=step,
-                                        sample_rate=self.sr)
+                self.writer.add_audio('{}/{}'.format(tag, key), to_numpy(value), global_step=step, sample_rate=self.sr)
             elif log_type == LogType.SCALAR:
                 self.writer.add_scalar('{}/{}'.format(tag, key), value, global_step=step)
             elif log_type == LogType.PLOT:
-                self.writer.add_image('{}/{}'.format(tag, key), self.plot_to_buf(to_numpy(value)), global_step=step)
+                self.writer.add_image('{}/{}'.format(tag, key), plot_to_buf(to_numpy(value)), global_step=step)
 
     @staticmethod
     def repeat(iterable):
         while True:
             for x in iterable:
                 yield x
-
-    @staticmethod
-    def plot_to_buf(x: np.ndarray, align: bool = True) -> np.ndarray:
-        fig, ax = plt.subplots()
-        ax.plot(x)
-        if align:
-            ax.set_ylim([-1, 1])
-        fig.canvas.draw()
-        im = np.array(fig.canvas.renderer._renderer)
-        plt.clf()
-        plt.close('all')
-        return np.rollaxis(im[..., :3], 2)
-
-    @staticmethod
-    def imshow_to_buf(x: np.ndarray) -> np.ndarray:
-        if len(x.shape) == 3:
-            x = x[0]
-        fig, ax = plt.subplots()
-        ax.imshow(x, cmap='magma', aspect='auto')
-        fig.canvas.draw()
-        im = np.array(fig.canvas.renderer._renderer)
-        plt.clf()
-        plt.close('all')
-        return np.rollaxis(im[..., :3], 2)

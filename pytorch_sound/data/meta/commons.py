@@ -3,9 +3,7 @@ import re
 import random
 from collections import defaultdict
 from typing import Callable, List, Any, Tuple
-
-from pytorch_sound.utils.sound import get_wav_header
-from pytorch_sound.data.meta import MetaFrame
+from scipy.io.wavfile import read as wav_read
 
 
 def go_multiprocess(worker_func: Callable, inputs: List[Any]) -> Any:
@@ -28,7 +26,8 @@ def go_multiprocess(worker_func: Callable, inputs: List[Any]) -> Any:
 
 def get_wav_duration(file: str) -> int:
     try:
-        dur = get_wav_header(file)['Duration']
+        sr, wav = wav_read(file)
+        dur = len(wav) / sr
     except:
         dur = -1
     return dur
@@ -64,7 +63,7 @@ def clean_eng(args: Tuple[int, str, int]) -> Tuple[int, str, int, int]:
     return speaker, file, dur, txt_dur
 
 
-def split_train_val_frame(data_frame: MetaFrame, val_rate: float = 0.1) -> Tuple[MetaFrame, MetaFrame]:
+def split_train_val_frame(data_frame, val_rate: float = 0.1) -> Tuple:
     # total length
     total_len = len(data_frame)
 

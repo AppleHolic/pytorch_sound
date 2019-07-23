@@ -11,16 +11,14 @@ def go_multiprocess(worker_func: Callable, inputs: List[Any]) -> List[Any]:
 
     # declare pool
     cpu_count = multiprocessing.cpu_count() // 2
-    pool = multiprocessing.Pool(cpu_count)
 
     res = []
-    try:
+
+    with multiprocessing.Pool(cpu_count) as pool:
         for i in range(0, len(inputs), cpu_count):
             start_idx, end_idx = i, i + cpu_count
             res += pool.map(worker_func, inputs[start_idx:end_idx])
             print('{}/{}\t{}() processed.'.format(i + 1, len(inputs), worker_func.__name__))
-    finally:
-        pool.close()
 
     return res
 

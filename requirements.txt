@@ -1,5 +1,5 @@
 numpy == 1.15.3
-librosa
+librosa == 0.7.0
 soundfile
 torch
 tensorboardX
@@ -9,3 +9,6 @@ Unidecode==1.0.22
 pandas
 pretty_midi
 ffmpeg_normalize
+pytest
+tqdm
+pysndfx

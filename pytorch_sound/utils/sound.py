@@ -1,5 +1,9 @@
 import struct
 import pretty_midi
+import numpy as np
+import librosa
+import pyworld
+from pysndfx import AudioEffectsChain
 from typing import Dict, Any
 
 
@@ -13,7 +17,26 @@ def parse_midi(path: str):
     return midi
 
 
-# based on https://blog.theroyweb.com/extracting-wav-file-header-information-using-a-python-script
+def lowpass(wav: np.ndarray, frequency: int) -> np.ndarray:
+    """
+    adopt lowpass using pysndfx package
+    :param wav: wav-form numpy array
+    :param frequency: target frequency
+    :return: filtered wav
+    """
+    fx = (
+        AudioEffectsChain().lowpass(frequency=frequency)
+    )
+    return fx(wav)
+
+
+def get_f0(wav: np.array, hop_length: int, sr: int = 22050):
+    x = librosa.util.pad_center(wav, len(wav), mode='reflect').astype('double')
+    _f0, t = pyworld.dio(x, sr, frame_period=hop_length / sr * 1e+3)  # raw pitch extractor
+    f0 = pyworld.stonemask(x, _f0, t, sr)  # pitch refinement
+    return f0.astype(np.float32)
+
+
 def get_wav_header(wav_file: str) -> Dict[str, Any]:
     """ Extracts data in the first 44 bytes in a WAV file and writes it
             out in a human-readable format

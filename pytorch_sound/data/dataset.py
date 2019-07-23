@@ -4,7 +4,7 @@ import torch
 import librosa
 import copy
 from scipy.io.wavfile import read as read_wav
-from typing import List
+from typing import List, Tuple, Callable
 from torch.utils.data import Dataset, DataLoader, Sampler
 from torch.utils.data.dataloader import default_collate
 from pytorch_sound.utils.sound import parse_midi
@@ -14,20 +14,31 @@ from pytorch_sound.data.meta import MetaFrame, MetaType
 
 class SpeechDataset(Dataset):
 
-    def __init__(self, meta_frame: MetaFrame, fix_len: int = 0, skip_audio: bool = False, audio_mask: bool = False):
+    def __init__(self, meta_frame: MetaFrame, fix_len: int = 0, fix_shuffle: bool = False,
+                 skip_audio: bool = False, audio_mask: bool = False, extra_features: List[Tuple[str, Callable]] = None):
         """
         :param meta_frame: Data Frame with dataset info
         :param kwargs: attributes to load data
         """
         self.meta_frame = meta_frame
         self.fix_len = fix_len
+        self.fix_shuffle = fix_shuffle
         self.cols = self.meta_frame.process_columns
         self.audio_mask = audio_mask
+        self.extra_features = extra_features
+
+        if self.extra_features:
+            column_names = [name for _, name in self.meta_frame.columns]
+            assert all([name in column_names for name, _ in extra_features]), \
+                'Unmatched extra_feature name! {} {}'.format(str(column_names), str(extra_features))
+            self.target_idx_map = {name: idx for idx, (type_, name) in enumerate(self.meta_frame.process_columns)}
+
         if skip_audio:
-            self.cols = [x for x in self.cols if x != MetaType.audio_filename.name]
+            self.cols = [(t, name) for (t, name) in self.cols if t != MetaType.AUDIO]
 
         # assign read function
-        self.read_wav = self.default_read_wav
+        # self.read_wav = self.default_read_wav
+        self.read_wav = librosa.load
 
     def default_read_wav(self, path: str, sr: int = None):
         sr, wav = read_wav(path)
@@ -39,21 +50,40 @@ class SpeechDataset(Dataset):
 
     def handle_fields(self, meta_item) -> List:
         results = []
+        mask = None
+        start_idx = -1
+
         for col in self.meta_frame.process_columns:
-            if col == MetaType.audio_filename.name:
-                item = self.load_audio(meta_item[col])
-                if self.audio_mask:
-                    results.append(item)
-                    item = np.ones_like(item)
-            elif col == MetaType.midi_filename.name:
-                item = self.load_midi(meta_item[col])
-            elif col == MetaType.speaker.name:
-                item = int(meta_item[col])
-            elif col == MetaType.text.name:
-                item = self.load_txt(meta_item[col])
+            type_, name = col
+            if type_ == MetaType.AUDIO:
+                item = self.load_audio(meta_item[name])
+                # random crop
+                if self.fix_len:
+                    if start_idx == -1 or self.fix_shuffle:
+                        start_idx = np.random.randint(0, max(1, len(item) - self.fix_len + 1))
+                    item = item[start_idx:start_idx + self.fix_len]
+                if self.audio_mask and mask is None:
+                    mask = np.ones_like(item)
+            elif type_ == MetaType.MIDI:
+                item = self.load_midi(meta_item[name])
+            elif type_ == MetaType.SCALAR:
+                item = int(meta_item[name])
+            elif type_ == MetaType.TEXT:
+                item = self.load_txt(meta_item[name])
             else:
-                raise NotImplementedError('{} is not implemented !'.format(col.value))
+                raise NotImplementedError('{} is not implemented !'.format(name))
             results.append(item)
+
+        if self.extra_features:
+            for ex in self.extra_features:
+                name, func = ex
+                item = results[self.target_idx_map[name]]
+                ex_feature = func(item)
+                results.append(ex_feature)
+
+        if mask is not None:
+            results.append(mask)
+
         return results
 
     def load_audio(self, file_path: str) -> List[np.ndarray]:
@@ -63,10 +93,6 @@ class SpeechDataset(Dataset):
             wav, sr = self.read_wav(file_path, sr=None)
         assert sr == self.meta_frame.sr, \
             'sample rate miss match.\n {}\t {} in {}'.format(self.meta_frame.sr, sr, file_path)
-        # random crop
-        if self.fix_len:
-            start_idx = np.random.randint(0, max(1, len(wav) - self.fix_len + 1))
-            wav = wav[start_idx:start_idx + self.fix_len]
         return wav
 
     @staticmethod
@@ -93,7 +119,9 @@ class BucketRandomBatchSampler(Sampler):
     It chunks samples into buckets and sample bucket id randomly for each minibatch.
     """
 
-    def __init__(self, data_source: Dataset, n_buckets: int, batch_size: int):
+    def __init__(self, data_source: Dataset, n_buckets: int, batch_size: int, skip_last_bucket: bool = False):
+        assert len(data_source) > self.n_buckets * batch_size, 'Data size is too small to use bucket sampler !'
+        # TODO: check bucket size is too small
         self.n_buckets = n_buckets
         self.data_size = len(data_source)
         self.batch_size = batch_size
@@ -104,7 +132,7 @@ class BucketRandomBatchSampler(Sampler):
             raise ValueError("the num of buckets has to be a positive value.")
 
         self.buckets = [list(range(i * self.bucket_size, (i + 1) * self.bucket_size))
-                        for i in range(self.n_buckets)]
+                        for i in range(self.n_buckets - int(skip_last_bucket))]
 
     def __iter__(self):
         # copy buckets and shuffle indices
@@ -128,12 +156,12 @@ class BucketRandomBatchSampler(Sampler):
 class SpeechDataLoader(DataLoader):
 
     def __init__(self, dataset: SpeechDataset, batch_size: int, num_workers: int,
-                 n_buckets: int = 10, is_bucket: bool = True):
+                 n_buckets: int = 10, is_bucket: bool = True, skip_last_bucket: bool = False):
 
         batch_sampler = None
         if is_bucket:
             batch_sampler = BucketRandomBatchSampler(
-                dataset, n_buckets=n_buckets, batch_size=batch_size)
+                dataset, n_buckets=n_buckets, batch_size=batch_size, skip_last_bucket=skip_last_bucket)
         # call super
         super().__init__(dataset,
                          num_workers=num_workers,

@@ -17,7 +17,7 @@ def db2log(db: TensorOrArr) -> TensorOrArr:
 def unnorm_mel(x: TensorOrArr) -> TensorOrArr:
     # mel range
     mel_min, mel_max = db2log(settings.MIN_DB), db2log(settings.MAX_DB)
-    return ((x + 1) * 0.5) * (mel_max - mel_min) + mel_min
+    return ((x + 1) / 2) * (mel_max - mel_min) + mel_min
 
 
 def norm_mel(x: TensorOrArr) -> TensorOrArr:
@@ -33,3 +33,10 @@ def volume_norm_log(x: np.array, target_db: float = -11.5) -> np.array:
 
 def volume_norm_log_torch(x: torch.tensor, target_db: float = -11.5) -> torch.tensor:
     return x / (torch.std(x) / 10 ** (target_db / 10))
+
+
+def conv_same_padding(filter_size: int, stride: int, dilation: int, x: int = 44100) -> int:
+    """
+    :return: "same" padding size using given arguments
+    """
+    return int(np.ceil(((x / stride - 1) * stride + (filter_size + (filter_size - 1) * (dilation - 1)) - x) / 2))
