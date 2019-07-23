@@ -3,6 +3,7 @@ import pretty_midi
 import numpy as np
 import librosa
 import pyworld
+from pysndfx import AudioEffectsChain
 from typing import Dict, Any
 
 
@@ -14,6 +15,19 @@ def parse_midi(path: str):
     except Exception as e:
         raise Exception(("%s\nerror readying midi file %s" % (e, path)))
     return midi
+
+
+def lowpass(wav: np.ndarray, frequency: int) -> np.ndarray:
+    """
+    adopt lowpass using pysndfx package
+    :param wav: wav-form numpy array
+    :param frequency: target frequency
+    :return: filtered wav
+    """
+    fx = (
+        AudioEffectsChain().lowpass(frequency=frequency)
+    )
+    return fx(wav)
 
 
 def get_f0(wav: np.array, hop_length: int, sr: int = 22050):
