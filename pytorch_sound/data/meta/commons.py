@@ -1,6 +1,7 @@
 import multiprocessing
 import re
 import random
+from pandas import DataFrame
 from collections import defaultdict
 from typing import Callable, List, Any, Tuple
 from scipy.io.wavfile import read as wav_read
@@ -63,7 +64,7 @@ def clean_eng(args: Tuple[int, str, int]) -> Tuple[int, str, int, int]:
     return speaker, file, dur, txt_dur
 
 
-def split_train_val_frame(data_frame, val_rate: float = 0.1) -> Tuple:
+def split_train_val_frame(data_frame: DataFrame, val_rate: float = 0.1) -> Tuple[DataFrame, DataFrame]:
     # total length
     total_len = len(data_frame)
 

@@ -13,7 +13,7 @@
 
 
 - Register models and call it other side.
-  - It is inspired https://github.com/pytorch/fairseq
+  - It is inspired by https://github.com/pytorch/fairseq
 
 ```python
 import torch.nn as nn
@@ -42,13 +42,13 @@ model = build_model(model_name)
 
 - Several dataset sources (preprocess, meta, general sound dataset)
 
-> LibriTTS, Maestro, VCTK and Voice Bank are prepared at now.
+> LibriTTS, Maestro, VCTK and VoiceBank are prepared at now.
 >
-> Freely suggest me a dataset !
+> Freely suggest me a dataset or PR is welcome!
 
 
 - Abstract Training Process
-  - You just build forward function (data to loss)
+  - Build forward function (from data to loss, meta)
   - Provide various logging type
     - Tensorboard, Console
     - scalar, plot, image, audio
@@ -76,14 +76,16 @@ class MyTrainer(Trainer):
 ```
 
 
+- English handler sources are brought from https://github.com/keithito/tacotron
+  - Add types
 - General sound settings and sources
 
 
-## Environment
+## Usage Details
 
-- Python > 3.6
-- pytorch 1.0
-- ffmpeg
+### Install
+
+- ffmpeg v4
 
 ```bash
 $ sudo add-apt-repository ppa:jonathonf/ffmpeg-4
@@ -91,6 +93,30 @@ $ sudo apt updated
 $ sudo apt install ffmpeg
 $ ffmpeg -version
 ```
+
+- install package
+
+```bash
+$ pip install -e .
+```
+
+
+### Preprocess / Handling Meta
+
+- To be updated soon
+
+
+### Examples
+
+- To be updated soon with repository
+
+
+## Environment
+
+- Python > 3.6
+- pytorch 1.0
+- ubuntu 16.04
+
 
 ## Components
 
@@ -102,6 +128,7 @@ $ ffmpeg -version
 
 ## To be updated soon
 
+- Preprocess docs in README.md
 - *Add test codes and CI*
 - *Examples (external repositories)*
 

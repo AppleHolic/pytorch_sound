@@ -26,4 +26,4 @@ def imshow_to_buf(x: np.ndarray) -> np.ndarray:
     im = np.array(fig.canvas.renderer._renderer)
     plt.clf()
     plt.close('all')
-    return np.rollaxis(im[::-1, :, :3], 2)
+    return np.rollaxis(im[..., :3], 2)

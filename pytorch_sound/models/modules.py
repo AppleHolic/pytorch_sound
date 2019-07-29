@@ -20,14 +20,13 @@ class MultiHeadAttention(nn.Module):
         else:
             self.drop_out = None
 
-    def forward(self, input: torch.tensor) -> torch.tensor:
-        # TODO: for att_mask
+    def forward(self, input: torch.tensor, mask: torch.tensor = None) -> torch.tensor:
         # linear and split k, v, q
         k, v, q = self.linear_kvq(input).chunk(3, 1)
         k, v, q = [torch.cat(x.chunk(self.heads, 1), dim=0) for x in [k, v, q]]
 
         # do attention at once
-        x, att = self.scale_dot_att(k, v, q, None)
+        x, att = self.scale_dot_att(k, v, q, mask.repeat(self.heads, 1))
         x = torch.cat(x.chunk(self.heads, 0), dim=1)
 
         x = self.linear(x)

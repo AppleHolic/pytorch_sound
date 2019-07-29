@@ -1,9 +1,9 @@
 # reference on
 # https://github.com/pytorch/fairseq/blob/master/fairseq/models/__init__.py
 import torch.nn as nn
-
 from typing import Callable, Dict, Any
 from pytorch_sound.utils.training import parse_model_kwargs
+
 
 MODEL_REGISTRY = {}
 ARCH_MODEL_REGISTRY = {}
@@ -12,6 +12,13 @@ ARCH_CONFIG_REGISTRY = {}
 
 
 def build_model(arch_name: str, extra_kwargs: Dict[str, Any] = None) -> nn.Module:
+    """
+    Build module using architecture name.
+    *notice* Your register functions must be registered earlier than calling this function
+    :param arch_name: The architecture name that registered by function.
+    :param extra_kwargs: Extra arguments that you want to change
+    :return: Module instance
+    """
     cls = ARCH_MODEL_REGISTRY[arch_name]
     kwargs = parse_model_kwargs(cls, **ARCH_CONFIG_REGISTRY[arch_name]())
     # extra kwargs fetch

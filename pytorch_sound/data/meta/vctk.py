@@ -136,7 +136,7 @@ def get_datasets(meta_dir: str, batch_size: int, num_workers: int,
                                   extra_features=extra_features)
 
     # create data loader
-    train_loader = SpeechDataLoader(train_dataset, batch_size=batch_size, is_bucket=False, num_workers=num_workers)
+    train_loader = SpeechDataLoader(train_dataset, batch_size=batch_size, is_bucket=True, num_workers=num_workers, n_buckets=5)
     valid_loader = SpeechDataLoader(valid_dataset, batch_size=batch_size, is_bucket=False, num_workers=num_workers)
 
     return train_loader, valid_loader

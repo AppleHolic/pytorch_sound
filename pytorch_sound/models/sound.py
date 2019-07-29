@@ -14,7 +14,7 @@ class VolNormWindow:
         self.prev_wav_len = wav_len
         self.std_buffer = torch.zeros(wav_len // self.window_size)
 
-    def forward(self, wav):
+    def forward(self, wav: torch.tensor) -> torch.tensor:
         wav_len = wav.size(-1)
         self.init_buffer(wav_len)
 
@@ -33,7 +33,7 @@ class VolNormWindow:
 
         return torch.cat(norm_wav_chunks, dim=-1)
 
-    def reverse(self, wav):
+    def reverse(self, wav: torch.tensor) -> torch.tensor:
         wav_len = wav.size(-1)
         assert self.prev_wav_len == wav_len
 
