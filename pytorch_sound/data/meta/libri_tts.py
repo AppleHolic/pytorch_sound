@@ -1,7 +1,7 @@
 import pandas as pd
 import os
 import glob
-from typing import List, Tuple
+from typing import List, Tuple, Callable
 from tqdm import tqdm
 from itertools import repeat
 
@@ -97,7 +97,8 @@ class LibriTTSMeta(MetaFrame):
 
 def get_datasets(meta_dir: str, batch_size: int, num_workers: int,
                  fix_len: int = 0, skip_audio: bool = False,
-                 audio_mask: bool = False, skip_last_bucket: bool = True) -> Tuple[SpeechDataLoader, SpeechDataLoader]:
+                 audio_mask: bool = False, skip_last_bucket: bool = True,
+                 extra_features: List[Tuple[str, Callable]] = None) -> Tuple[SpeechDataLoader, SpeechDataLoader]:
 
     assert os.path.isdir(meta_dir), '{} is not valid directory path!'
 
@@ -108,14 +109,15 @@ def get_datasets(meta_dir: str, batch_size: int, num_workers: int,
     valid_meta = LibriTTSMeta(os.path.join(meta_dir, valid_file))
 
     # create dataset
-    train_dataset = SpeechDataset(train_meta, fix_len=fix_len, skip_audio=skip_audio, audio_mask=audio_mask)
-    valid_dataset = SpeechDataset(valid_meta, fix_len=fix_len, skip_audio=skip_audio, audio_mask=audio_mask)
+    train_dataset = SpeechDataset(train_meta, fix_len=fix_len, skip_audio=skip_audio, audio_mask=audio_mask,
+                                  extra_features=extra_features)
+    valid_dataset = SpeechDataset(valid_meta, fix_len=fix_len, skip_audio=skip_audio, audio_mask=audio_mask,
+                                  extra_features=extra_features)
 
     # create data loader
     train_loader = SpeechDataLoader(train_dataset, batch_size=batch_size,
                                     num_workers=num_workers, skip_last_bucket=skip_last_bucket)
-    valid_loader = SpeechDataLoader(valid_dataset, batch_size=batch_size,
-                                    num_workers=num_workers, skip_last_bucket=skip_last_bucket)
+    valid_loader = SpeechDataLoader(valid_dataset, batch_size=batch_size, is_bucket=False, num_workers=num_workers)
 
     return train_loader, valid_loader
 
