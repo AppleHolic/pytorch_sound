@@ -4,6 +4,10 @@ from pytorch_sound.data.meta.voice_bank import get_datasets
 
 
 def test_voice_bank(meta_dir: str):
+    """
+    Simple function to test correctly loading voice bank dataset.
+    :param meta_dir: base directory that has meta files
+    """
     train_loader, valid_loader = get_datasets(meta_dir, 32, 4, 1)
     print('Loop train datasets')
     for _ in tqdm(train_loader):

@@ -4,6 +4,10 @@ from pytorch_sound.data.meta.vctk import get_datasets
 
 
 def test_vctk(meta_dir: str):
+    """
+    Simple function to test correctly loading vctk dataset.
+    :param meta_dir: base directory that has meta files
+    """
     train_loader, valid_loader = get_datasets(meta_dir, 32, 4, 1)
     print('Loop train datasets')
     for _ in tqdm(train_loader):

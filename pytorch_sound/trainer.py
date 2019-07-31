@@ -29,6 +29,35 @@ class LogType(enum.Enum):
 
 
 class Trainer:
+    """
+    Generalized training helper class.
+
+    This class focuses remove repetitive sources in general training pipeline.
+    And almost things has similar patterns to train some models, but, in major,
+    forwarding process is mainly different in most cases.
+    So, if engineer extends this class as their own cases, he/she just override forward function.
+
+    # TODO: describes overall process
+
+    Args:
+        model: a main model to be saved and to be forwarded
+        optimizer: optimizer module
+        train_dataset: dataset on train phase
+        valid_dataset: dataset on validation phase
+        max_step: maximum iteration step
+        valid_max_step: maximum iteration steps on each validation time.
+        save_interval: save and validate interval (in iteration)
+        log_interval: log interval (in iteration)
+        save_dir: base directory to save checkpoints and logs
+        save_prefix: a prefix to categorize each experiment
+        grad_clip: scalars to clamp gradients
+        grad_norm: maximum norm of gradients to be clipped
+        pretrained_path: specific file path of checkpoint
+        sr: sampling rate
+        scheduler: learning rate scheduler
+
+    # TODO: usage case
+    """
 
     def __init__(self, model: nn.Module, optimizer: torch.optim.Optimizer,
                  train_dataset, valid_dataset,
@@ -45,10 +74,11 @@ class Trainer:
         self.optimizer = optimizer
         self.scheduler = scheduler
 
-        # logging
+        # log how many parameters in the model
         n_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         log('Model {} was loaded. Total {} params.'.format(self.model.__class__.__name__, n_params))
 
+        # adopt repeating function on datasets
         self.train_dataset = self.repeat(train_dataset)
         self.valid_dataset = self.repeat(valid_dataset)
 
@@ -104,7 +134,7 @@ class Trainer:
         """
         raise NotImplemented
 
-    def run(self):
+    def run(self) -> float:
         try:
             # training loop
             for i in range(self.step + 1, self.max_step + 1):
@@ -161,11 +191,6 @@ class Trainer:
             log('{} cur step NAN is occured'.format(step))
             return
 
-        if step > 1:
-            for name, p in self.model.named_parameters():
-                if p.grad is None:
-                    log('{} grad is NAN'.format(name))
-
         loss.backward()
         self.clip_grad()
         self.optimizer.step()
@@ -176,7 +201,6 @@ class Trainer:
             self.console_log('train', meta, step)
             # tensorboard logging
             self.tensorboard_log('train', meta, step)
-        return loss
 
     def validate(self, step: int):
 
