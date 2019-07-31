@@ -1,10 +1,17 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from typing import Tuple
 
 
+#
+# Multi Head Self Attention Modules
+#
 class MultiHeadAttention(nn.Module):
-
+    """
+    Multi Head Attention module. https://arxiv.org/abs/1706.03762
+    This version has no normalization module and suppose self-attention
+    """
     def __init__(self, hidden_dim: int, heads: int, dropout_rate: float):
         super().__init__()
         self.hidden_dim = hidden_dim
@@ -20,17 +27,25 @@ class MultiHeadAttention(nn.Module):
         else:
             self.drop_out = None
 
-    def forward(self, input: torch.tensor, mask: torch.tensor = None) -> torch.tensor:
+    def forward(self, input: torch.tensor, mask: torch.tensor = None) -> Tuple[torch.tensor, torch.tensor]:
         # linear and split k, v, q
         k, v, q = self.linear_kvq(input).chunk(3, 1)
+
+        # split heads and concatenate on batch-wise dimension
+        # to calculate 'scale dot product' at once
         k, v, q = [torch.cat(x.chunk(self.heads, 1), dim=0) for x in [k, v, q]]
 
-        # do attention at once
+        # repeat mask tensor for supporting above line
         if mask is not None:
             mask = mask.repeat(self.heads, 1)
+
+        # dot product
         x, att = self.scale_dot_att(k, v, q, att_mask=mask)
+
+        # re-arrange tensor
         x = torch.cat(x.chunk(self.heads, 0), dim=1)
 
+        # linear operation
         x = self.linear(x)
 
         # dropout
@@ -60,6 +75,10 @@ class MultiHeadAttention(nn.Module):
 
 
 class PointwiseFeedForward(nn.Module):
+    """
+    Point-wise FeedForward module. https://arxiv.org/abs/1706.03762
+    This version has no normalization module
+    """
 
     def __init__(self, hidden_dim: int, dropout_rate: float):
         super().__init__()
@@ -72,7 +91,6 @@ class PointwiseFeedForward(nn.Module):
         )
 
         self.act = nn.ReLU()
-        # self.norm = nn.BatchNorm1d(hidden_dim)
 
         # dropout layer
         if 0 < dropout_rate < 1:
@@ -89,6 +107,9 @@ class PointwiseFeedForward(nn.Module):
 
 
 class AttentionLayer(nn.Module):
+    """
+    Concatenated Attention Modules
+    """
 
     def __init__(self, hidden_dim: int, heads: int):
         super().__init__()

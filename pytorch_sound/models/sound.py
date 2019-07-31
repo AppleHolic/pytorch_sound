@@ -2,6 +2,9 @@ import torch
 
 
 class VolNormConv:
+    """
+    Enhancing volume normalization on sound by windowing normalization process.
+    """
 
     def __init__(self, window_size: int, hop_size: int, target_db: float):
         self.window_size = window_size
