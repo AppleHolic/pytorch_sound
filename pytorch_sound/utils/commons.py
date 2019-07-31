@@ -8,6 +8,12 @@ __all__ = ['LOGGER', 'go_multiprocess']
 
 
 def go_multiprocess(worker_func: Callable, inputs: List[Any]) -> List[Any]:
+    """
+    Run and return worker function using multiprocessing.Pool.
+    :param worker_func: callable worker function
+    :param inputs: list of arguments for worker function
+    :return: results
+    """
 
     # declare pool
     cpu_count = multiprocessing.cpu_count() // 2
@@ -24,6 +30,11 @@ def go_multiprocess(worker_func: Callable, inputs: List[Any]) -> List[Any]:
 
 
 def get_logger(name: str):
+    """
+    Get formatted logger instance
+    :param name: logger's name
+    :return: instance of logger
+    """
     # setup logger
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
@@ -39,6 +50,10 @@ LOGGER = get_logger('main')
 
 
 def log(msg: str):
+    """
+    print message with using global logger instance
+    :param msg: message to be printed
+    """
     LOGGER.info(msg)
 
 

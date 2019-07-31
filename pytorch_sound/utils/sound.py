@@ -6,7 +6,12 @@ from scipy.io.wavfile import read as wav_read
 from pysndfx import AudioEffectsChain
 
 
-def parse_midi(path: str):
+def parse_midi(path: str) -> np.ndarray:
+    """
+    simple parsing function to make piano-roll from midi file
+    :param path: the MIDI file path
+    :return: an array of piano-roll
+    """
     midi = None
     try:
         midi = pretty_midi.PrettyMIDI(path)
@@ -30,6 +35,13 @@ def lowpass(wav: np.ndarray, frequency: int) -> np.ndarray:
 
 
 def get_f0(wav: np.array, hop_length: int, sr: int = 22050):
+    """
+    Parse f0 feature from given wave with using WORLD Vocoder
+    :param wav: an array of wave
+    :param hop_length: hop(stride) length
+    :param sr: sample rate of wave
+    :return: f0 feature
+    """
     x = librosa.util.pad_center(wav, len(wav), mode='reflect').astype('double')
     _f0, t = pyworld.dio(x, sr, frame_period=hop_length / sr * 1e+3)  # raw pitch extractor
     f0 = pyworld.stonemask(x, _f0, t, sr)  # pitch refinement

@@ -1,7 +1,7 @@
 import glob
 import os
 import fire
-from typing import Tuple
+from typing import Tuple, List
 from ffmpeg_normalize import FFmpegNormalize
 from tqdm import tqdm
 from pytorch_sound import settings
@@ -13,6 +13,11 @@ from pytorch_sound.utils.commons import go_multiprocess
 
 
 def process_all(args: Tuple[str]):
+    """
+    Audio processing worker function with using ffmpeg.
+    Do rms normalization, change codec and sample rate
+    :param args: in / out file path
+    """
     in_file, out_file = args
 
     norm = FFmpegNormalize(normalization_type='rms', audio_codec='pcm_f32le', sample_rate=settings.SAMPLE_RATE)
@@ -21,6 +26,10 @@ def process_all(args: Tuple[str]):
 
 
 def read_and_write(args: Tuple[str]):
+    """
+    copy file function
+    :param args: in / out file path
+    """
     in_file, out_file = args
     with open(in_file, 'r') as r:
         with open(out_file, 'w') as w:
@@ -28,6 +37,11 @@ def read_and_write(args: Tuple[str]):
 
 
 def get_sub_paths(in_dir: str, file_path: str):
+    """
+    :param in_dir: base directory of data files
+    :param file_path: target file path
+    :return: parsed sub paths
+    """
     in_dir_abs = os.path.abspath(in_dir)
     sub_ = file_path.replace(in_dir_abs, '')
     if sub_.startswith('/'):
@@ -36,6 +50,11 @@ def get_sub_paths(in_dir: str, file_path: str):
 
 
 def get_sub_dir(in_dir: str, file_path: str):
+    """
+    :param in_dir: base directory of data files
+    :param file_path: target file path
+    :return: parsed sub directory path
+    """
     sub_path = get_sub_paths(in_dir, file_path)
     sub_path = '/'.join(sub_path.split('/')[:-1])
     return sub_path
@@ -44,7 +63,12 @@ def get_sub_dir(in_dir: str, file_path: str):
 class Processor:
 
     @staticmethod
-    def copy_txt(in_dir: str, out_dir: str):
+    def __copy_txt(in_dir: str, out_dir: str):
+        """
+        helper function to copy text files recursively
+        :param in_dir: base directory of data files
+        :param out_dir: target directory
+        """
         # make txt list
         print('Lookup file list...')
         in_txt_list = glob.glob(os.path.join(in_dir, '**', '*.txt'))
@@ -64,7 +88,13 @@ class Processor:
         go_multiprocess(read_and_write, list(zip(in_txt_list, out_txt_list)))
 
     @staticmethod
-    def __preprocess_wave(in_dir: str, out_dir: str):
+    def __get_wave_file_list(in_dir: str, out_dir: str) -> Tuple[List[str], List[str]]:
+        """
+        lookup wave files and match file path on target directory
+        :param in_dir: base directory of data files
+        :param out_dir: target directory
+        :return: base wave file list, target wave file list
+        """
 
         # loop up wave files
         print('Lookup file list...')
@@ -87,23 +117,35 @@ class Processor:
         return in_wav_list, out_wav_list
 
     @staticmethod
-    def preprocess(in_dir: str, out_dir: str):
-        in_wav_list, out_wav_list = __class__.__preprocess_wave(in_dir, out_dir)
+    def preprocess_audio(in_dir: str, out_dir: str):
+        """
+        Preprocess audios given base directory and target directory with multi thread function.
+        :param in_dir: base directory of data files
+        :param out_dir: target directory
+        """
+        in_wav_list, out_wav_list = __class__.__get_wave_file_list(in_dir, out_dir)
 
         # do multi process
         go_multiprocess(process_all, list(zip(in_wav_list, out_wav_list)))
 
     @staticmethod
     def voice_bank(in_dir: str, out_dir: str, min_wav_rate: int = 0, max_wav_rate: int = 9999):
+        """
+        Pre-process from downloaded voice bank files to loadable files and make meta files
+        :param in_dir: base directory of data files
+        :param out_dir: target directory
+        :param min_wav_rate: minimum wave duration
+        :param max_wav_rate: maximum wave duration
+        """
         # preprocess audios
         print('Start to process audio files!')
-        __class__.preprocess(in_dir, out_dir)
+        __class__.preprocess_audio(in_dir, out_dir)
 
         print('Finishing...')
 
         # copy texts
         print('Copy text files...')
-        __class__.copy_txt(in_dir, out_dir)
+        __class__.__copy_txt(in_dir, out_dir)
 
         # make meta files
         meta_dir = os.path.join(out_dir, 'meta')
@@ -113,6 +155,13 @@ class Processor:
 
     @staticmethod
     def libri_tts(in_dir: str, out_dir: str, target_txt: str = 'normalized', is_clean: bool = False):
+        """
+        Pre-process from downloaded LibriTTS files to loadable files and make meta files
+        :param in_dir: base directory of data files
+        :param out_dir: target directory
+        :param target_txt: LibriTTS has two types of text, choose one in [normalized, original]
+        :param is_clean: LibriTTS has clean dataset and noisy dataset. True is clean and the another.
+        """
         # re-construct & copy raw data
         fetch_structure(in_dir, in_dir, target_txt=target_txt, is_clean=is_clean)
 
@@ -120,10 +169,10 @@ class Processor:
         in_dir = os.path.join(in_dir, 'train')
 
         # preprocess audios
-        __class__.preprocess(in_dir, out_dir)
+        __class__.preprocess_audio(in_dir, out_dir)
 
         # copy texts
-        __class__.copy_txt(in_dir, out_dir)
+        __class__.__copy_txt(in_dir, out_dir)
 
         # make meta files
         meta_dir = os.path.join(out_dir, 'meta')
@@ -132,6 +181,12 @@ class Processor:
 
     @staticmethod
     def vctk(in_dir: str, out_dir: str):
+        """
+        Pre-process from downloaded VCTK files to loadable files and make meta files.
+        It is processed with default audio settings. See pytorch_sound/settings.py
+        :param in_dir: base directory of data files
+        :param out_dir: target directory
+        """
         # lookup files
         print('lookup files...')
         wave_file_list = glob.glob(os.path.join(in_dir, 'wavs', '*', '*.wav'))

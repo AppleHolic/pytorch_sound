@@ -10,6 +10,10 @@ def _ntuple(n: int):
 
 
 def repeat(iterable):
+    """
+    Infinitly loop on iterable object
+    :param iterable: iterable object
+    """
     while True:
         for x in iterable:
             yield x
