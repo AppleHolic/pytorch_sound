@@ -11,7 +11,10 @@ from pytorch_sound.data.meta import MetaFrame, MetaType
 
 
 class VoiceBankMeta(MetaFrame):
-
+    """
+    Extended MetaFrame for using Voice Bank Dataset
+    - dataset : https://datashare.is.ed.ac.uk/handle/10283/2651
+    """
     frame_file_names: List[str] = ['all_meta.json', 'train_meta.json', 'val_meta.json']
 
     def __init__(self, meta_path: str = ''):
@@ -113,7 +116,7 @@ class VoiceBankMeta(MetaFrame):
 def get_datasets(meta_dir: str, batch_size: int, num_workers: int,
                  fix_len: int = 0, skip_audio: bool = False,
                  audio_mask: bool = False) -> Tuple[SpeechDataLoader, SpeechDataLoader]:
-
+    # TODO: update this function in general
     assert os.path.isdir(meta_dir), '{} is not valid directory path!'
 
     train_file, valid_file = VoiceBankMeta.frame_file_names[1:]

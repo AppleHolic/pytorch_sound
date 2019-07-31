@@ -4,7 +4,7 @@ import torch
 from typing import Dict, Callable, List, Any
 
 
-__all__ = ['LOGGER']
+__all__ = ['LOGGER', 'go_multiprocess']
 
 
 def go_multiprocess(worker_func: Callable, inputs: List[Any]) -> List[Any]:

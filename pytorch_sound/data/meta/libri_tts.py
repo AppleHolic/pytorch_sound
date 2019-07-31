@@ -11,7 +11,11 @@ from pytorch_sound.data.meta.commons import split_train_val_frame
 
 
 class LibriTTSMeta(MetaFrame):
-
+    """
+    Extended MetaFrame for using LibriTTS
+    - dataset : http://www.openslr.org/60/
+    - arxiv : https://arxiv.org/abs/1904.02882
+    """
     frame_file_names: List[str] = ['all_meta.json', 'train_meta.json', 'val_meta.json']
 
     def __init__(self, meta_path: str = ''):
@@ -51,7 +55,6 @@ class LibriTTSMeta(MetaFrame):
     #
     # preprocess functions
     #
-
     def make_meta(self, root_dir: str, min_wav_rate: int, max_wav_rate: int, min_txt_rate: float):
         # speakers
         print('list up speakers')
@@ -99,7 +102,7 @@ def get_datasets(meta_dir: str, batch_size: int, num_workers: int,
                  fix_len: int = 0, skip_audio: bool = False,
                  audio_mask: bool = False, skip_last_bucket: bool = True,
                  extra_features: List[Tuple[str, Callable]] = None) -> Tuple[SpeechDataLoader, SpeechDataLoader]:
-
+    # TODO: update this function in general
     assert os.path.isdir(meta_dir), '{} is not valid directory path!'
 
     train_file, valid_file = LibriTTSMeta.frame_file_names[1:]
@@ -123,6 +126,11 @@ def get_datasets(meta_dir: str, batch_size: int, num_workers: int,
 
 
 def get_speakers(meta_dir: str) -> int:
+    """
+    the number of speakers in libri-tts trainset
+    :param meta_dir: meta directory path
+    :return: the number of speakers
+    """
     assert os.path.isdir(meta_dir), '{} is not valid directory path!'
 
     train_file = LibriTTSMeta.frame_file_names[1]
