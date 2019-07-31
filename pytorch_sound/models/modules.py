@@ -26,7 +26,9 @@ class MultiHeadAttention(nn.Module):
         k, v, q = [torch.cat(x.chunk(self.heads, 1), dim=0) for x in [k, v, q]]
 
         # do attention at once
-        x, att = self.scale_dot_att(k, v, q, mask.repeat(self.heads, 1))
+        if mask is not None:
+            mask = mask.repeat(self.heads, 1)
+        x, att = self.scale_dot_att(k, v, q, att_mask=mask)
         x = torch.cat(x.chunk(self.heads, 0), dim=1)
 
         x = self.linear(x)
