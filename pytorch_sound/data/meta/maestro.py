@@ -8,7 +8,11 @@ from pytorch_sound.data.dataset import SpeechDataset, SpeechDataLoader
 
 
 class MaestroMeta(MetaFrame):
-
+    """
+    Extended MetaFrame for using Maestro Dataset
+    * Especially, the meta files exists in Maestro dataset that can be used on this class
+    - dataset : https://magenta.tensorflow.org/datasets/maestro
+    """
     def __init__(self, meta_path: str, min_wav_rate: float = 0.0, max_wav_rate: float = 0.0):
         self.meta_path = meta_path
         self.root_dir = os.path.split(self.meta_path)[-2]
@@ -71,7 +75,7 @@ class MaestroMeta(MetaFrame):
 
 def get_datasets(meta_dir: str, batch_size: int, num_workers: int,
                  fix_len: int = 0, skip_audio: bool = False) -> Tuple[SpeechDataLoader, SpeechDataLoader]:
-
+    # TODO: update this function in general
     assert os.path.isdir(meta_dir), '{} is not valid directory path!'
 
     train_file, valid_file = MaestroMeta.frame_file_names[1:]

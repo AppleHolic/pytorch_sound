@@ -1,69 +1,18 @@
-import multiprocessing
-import re
 import random
+from pandas import DataFrame
 from collections import defaultdict
-from typing import Callable, List, Any, Tuple
-from scipy.io.wavfile import read as wav_read
+from typing import Tuple
 
 
-def go_multiprocess(worker_func: Callable, inputs: List[Any]) -> Any:
-
-    # declare pool
-    cpu_count = multiprocessing.cpu_count() // 2
-    pool = multiprocessing.Pool(cpu_count)
-
-    res = []
-    try:
-        for i in range(0, len(inputs), cpu_count):
-            start_idx, end_idx = i, i + cpu_count
-            res += pool.map(worker_func, inputs[start_idx:end_idx])
-            print('{}/{}\t{}() processed.'.format(i + 1, len(inputs), worker_func.__name__))
-    finally:
-        pool.close()
-
-    return res
-
-
-def get_wav_duration(file: str) -> int:
-    try:
-        sr, wav = wav_read(file)
-        dur = len(wav) / sr
-    except:
-        dur = -1
-    return dur
-
-
-def get_text_len(args: Tuple[int, str, int]) -> Tuple[int, str, int, int]:
-    speaker, file, dur = args
-    try:
-        with open(file, encoding='utf-8') as f:
-            # load file
-            txt = f.read()
-            # merge white spaces into single space
-            txt_dur = len(' '.join(txt.split()))
-    except:
-        txt_dur = -1
-
-    return speaker, file, dur, txt_dur
-
-
-def clean_eng(args: Tuple[int, str, int]) -> Tuple[int, str, int, int]:
-    speaker, file, dur = args
-    regex = re.compile(r'[a-zA-Z\'\.\,\?\!\ ]+')
-    try:
-        with open(file, encoding='utf-8') as f:
-            # load file
-            txt = f.read()
-            txt = ' '.join(map(lambda x: x.strip(), regex.findall(txt)))
-            # merge white spaces into single space
-            txt_dur = len(' '.join(txt.split()))
-    except:
-        txt_dur = -1
-
-    return speaker, file, dur, txt_dur
-
-
-def split_train_val_frame(data_frame, val_rate: float = 0.1) -> Tuple:
+def split_train_val_frame(data_frame: DataFrame, val_rate: float = 0.1) -> Tuple[DataFrame, DataFrame]:
+    """
+    Split DataFrame into train and validation.
+    If it has 'speaker' columns, it splits frame using speaker column dependently.
+    Not of that, it splits frame randomly.
+    :param data_frame: whole data(meta) frame
+    :param val_rate: percentage of validation
+    :return: train and valid data(meta) frame
+    """
     # total length
     total_len = len(data_frame)
 

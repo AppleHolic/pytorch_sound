@@ -1,7 +1,6 @@
-""" from https://github.com/keithito/tacotron """
-
 import inflect
 import re
+
 
 _inflect = inflect.engine()
 _comma_number_re = re.compile(r'([0-9][0-9\,]+[0-9])')
@@ -46,11 +45,12 @@ def _expand_ordinal(m):
 
 
 def _expand_number(m):
+    # TODO: Need to enhance this function
     num = int(m.group(0))
-    if num > 1000 and num < 3000:
+    if 1000 < num < 3000:
         if num == 2000:
             return 'two thousand'
-        elif num > 2000 and num < 2010:
+        elif 2000 < num < 2010:
             return 'two thousand ' + _inflect.number_to_words(num % 100)
         elif num % 100 == 0:
             return _inflect.number_to_words(num // 100) + ' hundred'

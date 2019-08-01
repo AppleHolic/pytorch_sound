@@ -17,7 +17,6 @@ from tqdm import tqdm
 # dev-clean
 # dev-other
 # test-clean
-# TODO: Contain resampling / volume normalization process
 def fetch_structure(data_dir: str, out_dir: str, target_txt: str = 'normalized', is_clean: bool = True):
     # define target data
     if is_clean:

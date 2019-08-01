@@ -13,11 +13,11 @@ except ImportError:
     MelJit = None
 
 
-#
-# Re-construct stft for calculating backward operation
-# refer on : https://github.com/pseeth/torch-stft/blob/master/torch_stft/stft.py
-#
 class STFT(nn.Module):
+    """
+    Re-construct stft for calculating backward operation
+    refer on : https://github.com/pseeth/torch-stft/blob/master/torch_stft/stft.py
+    """
 
     def __init__(self, filter_length: int = 1024, hop_length: int = 512, win_length: int = None,
                  window: str = 'hann'):
@@ -104,6 +104,9 @@ class STFT(nn.Module):
 
 
 class MelSpectrogram(nn.Module):
+    """
+    Mel spectrogram module with above STFT class
+    """
 
     def __init__(self, sample_rate: int, mel_size: int, n_fft: int, win_length: int,
                  hop_length: int, min_db: float, max_db: float,
@@ -136,6 +139,10 @@ class MelSpectrogram(nn.Module):
 
 
 class MelMasker(nn.Module):
+    """
+    # TODO: rename class
+    Helper class transforming wave-level mask to spectrogram-level mask
+    """
 
     def __init__(self, win_length: int, hop_length: int):
         super().__init__()
@@ -152,6 +159,9 @@ class MelMasker(nn.Module):
 
 
 class MelToMFCC(nn.Module):
+    """
+    Create the Mel-frequency cepstrum coefficients from mel-spectrogram
+    """
 
     def __init__(self, n_mfcc: int, mel_size: int):
         super().__init__()
@@ -166,6 +176,9 @@ class MelToMFCC(nn.Module):
 
 
 class MFCC(nn.Module):
+    """
+    Create the Mel-frequency cepstrum coefficients from an audio signal
+    """
 
     def __init__(self, sample_rate: int, mel_size: int, n_fft: int, win_length: int, n_mfcc: int,
                  hop_length: int, min_db: float, max_db: float,
@@ -190,6 +203,10 @@ class MFCC(nn.Module):
 # torchaudio jit computation version.
 #
 class MelSpectrogramJIT(nn.Module):
+    """
+    Wrapper class to adopt torchaudio's version
+    - https://github.com/pytorch/audio/blob/master/torchaudio/transforms.py
+    """
 
     def __init__(self, sample_rate: int, mel_size: int, n_fft: int, win_length: int,
                  hop_length: int, min_db: float, max_db: float,

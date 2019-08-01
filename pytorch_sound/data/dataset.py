@@ -3,8 +3,7 @@ import numpy as np
 import torch
 import librosa
 import copy
-from scipy.io.wavfile import read as read_wav
-from typing import List, Tuple, Callable
+from typing import List, Tuple, Callable, Any
 from torch.utils.data import Dataset, DataLoader, Sampler
 from torch.utils.data.dataloader import default_collate
 from pytorch_sound.utils.sound import parse_midi
@@ -13,12 +12,24 @@ from pytorch_sound.data.meta import MetaFrame, MetaType
 
 
 class SpeechDataset(Dataset):
+    """
+    General pytorch dataset class using MetaFrame.
+    It focuses on removing repetitive implementing same dataset on each experiments.
+    Because of the columns of meta frame are generalized data types, dataset class all can be generalized.
+
+    # TODO: Add usage sample
+    """
 
     def __init__(self, meta_frame: MetaFrame, fix_len: int = 0, fix_shuffle: bool = False,
                  skip_audio: bool = False, audio_mask: bool = False, extra_features: List[Tuple[str, Callable]] = None):
         """
-        :param meta_frame: Data Frame with dataset info
-        :param kwargs: attributes to load data
+
+        :param meta_frame: An instance of MetaFrame
+        :param fix_len: fixing(random cropping) the length of wave data
+        :param fix_shuffle: randomize or not choosing random start index in above
+        :param skip_audio: skip loading waves
+        :param audio_mask: add or not a masks of wave
+        :param extra_features: extra features that calculated on specific column, it is added on last points.
         """
         self.meta_frame = meta_frame
         self.fix_len = fix_len
@@ -36,19 +47,16 @@ class SpeechDataset(Dataset):
         if skip_audio:
             self.cols = [(t, name) for (t, name) in self.cols if t != MetaType.AUDIO]
 
-        # assign read function
-        # self.read_wav = self.default_read_wav
-        self.read_wav = librosa.load
-
-    def default_read_wav(self, path: str, sr: int = None):
-        sr, wav = read_wav(path)
-        return wav, sr
-
     def __getitem__(self, idx: int) -> List:
         meta_item = self.meta_frame.iloc[idx]
         return self.handle_fields(meta_item)
 
     def handle_fields(self, meta_item) -> List:
+        """
+        Loading and processing data using meta information on meta frame
+        :param meta_item: an row on meta frame
+        :return: loaded data point
+        """
         results = []
         mask = None
         start_idx = -1
@@ -86,11 +94,9 @@ class SpeechDataset(Dataset):
 
         return results
 
-    def load_audio(self, file_path: str) -> List[np.ndarray]:
-        wav, sr = self.read_wav(file_path, sr=None)
-        if wav.dtype != np.float32:
-            self.read_wav = librosa.load
-            wav, sr = self.read_wav(file_path, sr=None)
+    def load_audio(self, file_path: str) -> np.ndarray:
+        # Speed of librosa loading function is enhanced on version 0.7.0
+        wav, sr = librosa.load(file_path, sr=None)
         assert sr == self.meta_frame.sr, \
             'sample rate miss match.\n {}\t {} in {}'.format(self.meta_frame.sr, sr, file_path)
         return wav
@@ -116,12 +122,11 @@ class SpeechDataset(Dataset):
 
 class BucketRandomBatchSampler(Sampler):
     """
-    It chunks samples into buckets and sample bucket id randomly for each minibatch.
+    Chunking samples into buckets and sample bucket id randomly for each mini batch.
     """
 
     def __init__(self, data_source: Dataset, n_buckets: int, batch_size: int, skip_last_bucket: bool = False):
-        assert len(data_source) > self.n_buckets * batch_size, 'Data size is too small to use bucket sampler !'
-        # TODO: check bucket size is too small
+        assert len(data_source) > n_buckets * batch_size, 'Data size is too small to use bucket sampler !'
         self.n_buckets = n_buckets
         self.data_size = len(data_source)
         self.batch_size = batch_size
@@ -154,6 +159,12 @@ class BucketRandomBatchSampler(Sampler):
 
 
 class SpeechDataLoader(DataLoader):
+    """
+    General data loader for loading speech related data.
+    It has customized collate function to match lengths of data in each batches.
+
+    # TODO: Add usage sample
+    """
 
     def __init__(self, dataset: SpeechDataset, batch_size: int, num_workers: int,
                  n_buckets: int = 10, is_bucket: bool = True, skip_last_bucket: bool = False):
@@ -172,8 +183,12 @@ class SpeechDataLoader(DataLoader):
                          batch_sampler=batch_sampler)
 
     @staticmethod
-    def pad_collate_fn(batch: List[torch.tensor]) -> torch.tensor:
-
+    def pad_collate_fn(batch: List[Any]) -> torch.tensor:
+        """
+        Matching lengths in using zero-pad
+        :param batch: mini batch by sampled on dataset
+        :return: collated tensor
+        """
         if len(batch) > 1:
             # do zero-padding
             result = []
