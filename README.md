@@ -15,6 +15,7 @@
 - Register models and call it other side.
   - It is inspired by https://github.com/pytorch/fairseq
 
+
 ```python
 import torch.nn as nn
 from pytorch_sound.models import register_model, register_model_architecture
