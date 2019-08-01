@@ -9,7 +9,7 @@
 ## Introduction
 
  *Pytorch Sound* is a modeling toolkit that allows engineers to train custom models for sound related tasks.
- It focuses on removing repetitive patterns that builds deep learning pipelines.
+ It focuses on removing repetitive patterns that builds deep learning pipelines to boost speed of related experiments.
 
 
 - Register models and call it other side.
@@ -60,7 +60,7 @@ from pytorch_sound.trainer import Trainer, LogType
 
 class MyTrainer(Trainer):
 
-    def forward(input: torch.tensor, target: torch.tensor, is_logging: bool):
+    def forward(self, input: torch.tensor, target: torch.tensor, is_logging: bool):
         # forward model
         out = self.model(input)
 
@@ -81,7 +81,7 @@ class MyTrainer(Trainer):
 - General sound settings and sources
 
 
-## Usage Details
+## Usage
 
 ### Install
 
@@ -131,6 +131,7 @@ $ pip install -e .
 - Preprocess docs in README.md
 - *Add test codes and CI*
 - *Examples (external repositories)*
+- Document website.
 
 
 ## LICENSE

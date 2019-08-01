@@ -37,8 +37,6 @@ class Trainer:
     forwarding process is mainly different in most cases.
     So, if engineer extends this class as their own cases, he/she just override forward function.
 
-    # TODO: describes overall process
-
     Args:
         model: a main model to be saved and to be forwarded
         optimizer: optimizer module
@@ -56,7 +54,22 @@ class Trainer:
         sr: sampling rate
         scheduler: learning rate scheduler
 
-    # TODO: usage case
+    Examples::
+        class MyTrainer(Trainer):
+
+            def forward(self, input: torch.tensor, target: torch.tensor, is_logging: bool):
+                # forward model
+                out = self.model(input)
+
+                # calc your own loss
+                loss = calc_loss(out, target)
+
+                # build meta for logging
+                meta = {
+                    'loss': (loss.item(), LogType.SCALAR),
+                    'out': (out[0], LogType.PLOT)
+                }
+                return loss, meta
     """
 
     def __init__(self, model: nn.Module, optimizer: torch.optim.Optimizer,

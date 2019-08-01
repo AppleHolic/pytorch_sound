@@ -11,7 +11,7 @@ def _ntuple(n: int):
 
 def repeat(iterable):
     """
-    Infinitly loop on iterable object
+    Infinite loop on iterable object
     :param iterable: iterable object
     """
     while True:
