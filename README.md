@@ -120,8 +120,7 @@ $ python pytorch_sound/scripts/preprocess.py [libri_tts / vctk / voice_bank] in_
 
 ### Examples
 
-- Source Separation with spectrogram-unet
-  - https://github.com/AppleHolic/source_separation
+- to be updated
 
 
 ## Environment
