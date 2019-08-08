@@ -3,6 +3,7 @@ import numpy as np
 import librosa
 import pyworld
 from scipy.io.wavfile import read as wav_read
+from scipy import signal
 from pysndfx import AudioEffectsChain
 
 
@@ -60,3 +61,11 @@ def get_wav_duration(file: str) -> float:
     except:
         dur = -1
     return dur
+
+
+def preemphasis(x, coeff=0.97):
+    return signal.lfilter([1, -coeff], [1], x).astype(np.float32)
+
+
+def inv_preemphasis(x, coeff=0.97):
+    return signal.lfilter([1], [1, -coeff], x).astype(np.float32)

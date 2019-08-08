@@ -79,6 +79,7 @@ class MyTrainer(Trainer):
 
 - English handler sources are brought from https://github.com/keithito/tacotron
   - Add types
+
 - General sound settings and sources
 
 
@@ -90,7 +91,7 @@ class MyTrainer(Trainer):
 
 ```bash
 $ sudo add-apt-repository ppa:jonathonf/ffmpeg-4
-$ sudo apt updated
+$ sudo apt update
 $ sudo apt install ffmpeg
 $ ffmpeg -version
 ```
@@ -104,12 +105,23 @@ $ pip install -e .
 
 ### Preprocess / Handling Meta
 
-- To be updated soon
+1. Download data files
+  - In the LibriTTS case, checkout [READMD](https://github.com/AppleHolic/pytorch_sound/blob/master/pytorch_sound/scripts/libri_tts/README.md)
+
+2. Run commands (If you want to change sound settings, Change settings.py)
+
+```bash
+$ python pytorch_sound/scripts/preprocess.py [libri_tts / vctk / voice_bank] in_dir out_dir
+```
+
+3. Checkout preprocessed data, meta files.
+  - Maestro dataset is not required running preprocess code at now.
 
 
 ### Examples
 
-- To be updated soon with repository
+- Source Separation with spectrogram-unet
+  - https://github.com/AppleHolic/source_separation
 
 
 ## Environment
@@ -131,7 +143,6 @@ $ pip install -e .
 
 - Preprocess docs in README.md
 - *Add test codes and CI*
-- *Examples (external repositories)*
 - Document website.
 
 
