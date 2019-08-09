@@ -1,6 +1,8 @@
 import glob
 import os
 import fire
+import librosa
+import numpy as np
 from typing import Tuple, List
 from ffmpeg_normalize import FFmpegNormalize
 from tqdm import tqdm
@@ -8,6 +10,7 @@ from pytorch_sound import settings
 from pytorch_sound.data.meta.libri_tts import LibriTTSMeta
 from pytorch_sound.data.meta.vctk import VCTKMeta
 from pytorch_sound.data.meta.voice_bank import VoiceBankMeta
+from pytorch_sound.data.meta.dsd100 import DSD100Meta
 from pytorch_sound.scripts.libri_tts.fetch import fetch_structure
 from pytorch_sound.utils.commons import go_multiprocess
 
@@ -23,6 +26,21 @@ def process_all(args: Tuple[str]):
     norm = FFmpegNormalize(normalization_type='rms', audio_codec='pcm_f32le', sample_rate=settings.SAMPLE_RATE)
     norm.add_media_file(in_file, out_file)
     norm.run_normalization()
+
+
+def load_and_numpy_audio(args: Tuple[str]):
+    """
+    When audio files are very big, it brings more file loading time.
+    So, convert audio files to numpy files
+    :param args: in / out file path
+    """
+    in_file, out_file = args
+
+    # load audio file with librosa
+    wav, _ = librosa.load(in_file, sr=None)
+
+    # save wav array
+    np.save(out_file, wav)
 
 
 def read_and_write(args: Tuple[str]):
@@ -226,6 +244,31 @@ class Processor:
         meta_dir = os.path.join(out_dir, 'meta')
         meta = VCTKMeta(meta_dir)
         meta.make_meta(out_dir, out_wav_list, out_txt_list)
+
+    @staticmethod
+    def dsd100(data_dir: str):
+        """
+        DSD100 is different to others, it just make meta file to load directly original ones.
+        :param data_dir: Data root directory
+        """
+        print('Lookup files ...')
+        mixture_list = glob.glob(os.path.join(data_dir, 'Mixtures', '**', '**', 'mixture.wav'))
+        out_mixture_list = [file_path.replace('.wav', '.npy') for file_path in mixture_list]
+
+        # It only extract vocals. If you wanna use other source, override it.
+        vocals_list = glob.glob(os.path.join(data_dir, 'Sources', '**', '**', 'vocals.wav'))
+        out_vocals_list = [file_path.replace('.wav', '.npy') for file_path in vocals_list]
+
+        # save as numpy file
+        print('Save as numpy files..')
+        print('- Mixture File')
+        go_multiprocess(load_and_numpy_audio, list(zip(mixture_list, out_mixture_list)))
+        print('- Vocals File')
+        go_multiprocess(load_and_numpy_audio, list(zip(vocals_list, out_vocals_list)))
+
+        meta_dir = os.path.join(data_dir, 'meta')
+        meta = DSD100Meta(meta_dir)
+        meta.make_meta(data_dir)
 
 
 if __name__ == '__main__':

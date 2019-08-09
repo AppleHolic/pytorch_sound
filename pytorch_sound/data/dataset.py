@@ -96,9 +96,14 @@ class SpeechDataset(Dataset):
 
     def load_audio(self, file_path: str) -> np.ndarray:
         # Speed of librosa loading function is enhanced on version 0.7.0
-        wav, sr = librosa.load(file_path, sr=None)
-        assert sr == self.meta_frame.sr, \
-            'sample rate miss match.\n {}\t {} in {}'.format(self.meta_frame.sr, sr, file_path)
+        if file_path.endswith('.wav'):
+            wav, sr = librosa.load(file_path, sr=None)
+            assert sr == self.meta_frame.sr, \
+                'sample rate miss match.\n {}\t {} in {}'.format(self.meta_frame.sr, sr, file_path)
+        elif file_path.endswith('.npy'):
+            wav = np.load(file_path)
+        else:
+            raise NotImplementedError('{} : File Type is not implemented to load audio data !'.format(file_path))
         return wav
 
     @staticmethod
