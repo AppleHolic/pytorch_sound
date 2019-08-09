@@ -24,7 +24,7 @@ class LibriTTSMeta(MetaFrame):
             self._meta = pd.read_json(self.meta_path)
             self._meta = self._meta.sort_values(by='duration')
         else:
-            self._meta = pd.DataFrame(columns=self.columns, data={})
+            self._meta = pd.DataFrame(columns=self.column_names, data={})
         # setup parameters
         self._num_speakers = None
 

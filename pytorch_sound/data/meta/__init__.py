@@ -52,6 +52,10 @@ class MetaFrame:
         raise NotImplementedError('You must define columns !')
 
     @property
+    def column_names(self) -> List[str]:
+        return [col[1] for col in self.columns]
+
+    @property
     @abc.abstractmethod
     def meta(self) -> pd.DataFrame:
         """
