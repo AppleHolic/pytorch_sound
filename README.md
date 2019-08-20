@@ -120,7 +120,7 @@ $ python pytorch_sound/scripts/preprocess.py [libri_tts / vctk / voice_bank] in_
 
 ### Examples
 
-- to be updated
+- Source (Speech) Separation with audioset : https://github.com/AppleHolic/source_separation
 
 
 ## Environment
