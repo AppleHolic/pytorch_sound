@@ -42,7 +42,7 @@ def load_split_numpy(args: Tuple[str]):
     wav, _ = librosa.load(in_file, sr=None)
 
     # save wav array
-    for idx in range(0, len(wav), wav_len):
+    for idx in range(0, len(wav) - wav_len, wav_len):
         np.save(out_file.replace('.npy', '.{}.npy'.format(idx)), wav[idx: idx+wav_len])
 
 
