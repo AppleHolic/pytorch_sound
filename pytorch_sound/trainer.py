@@ -197,7 +197,7 @@ class Trainer:
         log_flag = step % self.log_interval == 0
 
         # forward model
-        loss, meta = self.forward(*to_device(next(self.train_dataset)), log_flag)
+        loss, meta = self.forward(*to_device(next(self.train_dataset)), is_logging=log_flag)
 
         # check loss nan
         if loss != loss:
@@ -224,7 +224,7 @@ class Trainer:
 
             # forward model
             with torch.no_grad():
-                batch_loss, meta = self.forward(*to_device(next(self.valid_dataset)), True)
+                batch_loss, meta = self.forward(*to_device(next(self.valid_dataset)), is_logging=True)
                 loss += batch_loss
 
             # update stat
