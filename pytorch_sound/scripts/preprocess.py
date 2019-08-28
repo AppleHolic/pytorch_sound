@@ -1,5 +1,7 @@
 import glob
 import os
+from itertools import repeat
+
 import fire
 import librosa
 import numpy as np
@@ -28,19 +30,20 @@ def process_all(args: Tuple[str]):
     norm.run_normalization()
 
 
-def load_and_numpy_audio(args: Tuple[str]):
+def load_split_numpy(args: Tuple[str]):
     """
     When audio files are very big, it brings more file loading time.
     So, convert audio files to numpy files
     :param args: in / out file path
     """
-    in_file, out_file = args
+    in_file, out_file, wav_len = args
 
     # load audio file with librosa
     wav, _ = librosa.load(in_file, sr=None)
 
     # save wav array
-    np.save(out_file, wav)
+    for idx in range(0, len(wav), wav_len):
+        np.save(out_file.replace('.npy', '.{}.npy'.format(idx)), wav[idx: idx+wav_len])
 
 
 def read_and_write(args: Tuple[str]):
@@ -246,7 +249,7 @@ class Processor:
         meta.make_meta(out_dir, out_wav_list, out_txt_list)
 
     @staticmethod
-    def dsd100(data_dir: str):
+    def dsd100(data_dir: str, wav_subset_len: int = 44100 * 10):
         """
         DSD100 is different to others, it just make meta file to load directly original ones.
         :param data_dir: Data root directory
@@ -262,9 +265,9 @@ class Processor:
         # save as numpy file
         print('Save as numpy files..')
         print('- Mixture File')
-        go_multiprocess(load_and_numpy_audio, list(zip(mixture_list, out_mixture_list)))
+        go_multiprocess(load_split_numpy, list(zip(mixture_list, out_mixture_list, repeat(wav_subset_len, len(mixture_list)))))
         print('- Vocals File')
-        go_multiprocess(load_and_numpy_audio, list(zip(vocals_list, out_vocals_list)))
+        go_multiprocess(load_split_numpy, list(zip(vocals_list, out_vocals_list, repeat(wav_subset_len, len(vocals_list)))))
 
         meta_dir = os.path.join(data_dir, 'meta')
         meta = DSD100Meta(meta_dir)

@@ -41,10 +41,10 @@ class DSD100Meta(MetaFrame):
         # Use all audio files
         # directory names
         print('Lookup files ...')
-        mixture_list = glob.glob(os.path.join(root_dir, 'Mixtures', '**', '**', 'mixture.npy'))
+        mixture_list = glob.glob(os.path.join(root_dir, 'Mixtures', '**', '**', 'mixture.*.npy'))
 
         # It only extract vocals. If you wanna use other source, override it.
-        vocals_list = glob.glob(os.path.join(root_dir, 'Sources', '**', '**', 'vocals.npy'))
+        vocals_list = glob.glob(os.path.join(root_dir, 'Sources', '**', '**', 'vocals.*.npy'))
 
         # make meta dict
         print('Make meta information ...')
