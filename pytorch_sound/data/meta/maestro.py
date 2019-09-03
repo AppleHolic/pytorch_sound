@@ -13,7 +13,7 @@ class MaestroMeta(MetaFrame):
     * Especially, the meta files exists in Maestro dataset that can be used on this class
     - dataset : https://magenta.tensorflow.org/datasets/maestro
     """
-    def __init__(self, meta_path: str, min_wav_rate: float = 0.0, max_wav_rate: float = 0.0):
+    def __init__(self, meta_path: str, min_wav_rate: float = 0.0, max_wav_rate: float = 0.0, sr: int = 44100):
         self.meta_path = meta_path
         self.root_dir = os.path.split(self.meta_path)[-2]
         if os.path.exists(self.meta_path):
@@ -27,6 +27,7 @@ class MaestroMeta(MetaFrame):
             raise RuntimeError('%s is not exists !'.format(meta_path))
         self.min_wav_rate = min_wav_rate
         self.max_wav_rate = max_wav_rate
+        self.sr = sr
 
     @property
     def columns(self) -> List[Tuple[MetaType, str]]:
@@ -35,10 +36,6 @@ class MaestroMeta(MetaFrame):
     @property
     def meta(self) -> pd.DataFrame:
         return self._meta
-
-    @property
-    def sr(self) -> int:
-        return 44100
 
     @property
     def frame_file_names(self) -> List[str]:

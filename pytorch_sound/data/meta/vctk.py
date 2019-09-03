@@ -18,7 +18,7 @@ class VCTKMeta(MetaFrame):
     """
     frame_file_names: List[str] = ['all_meta.json', 'train_meta.json', 'val_meta.json']
 
-    def __init__(self, meta_path: str = ''):
+    def __init__(self, meta_path: str = '', sr: int = sr):
         self.meta_path = meta_path
         if os.path.exists(self.meta_path) and not os.path.isdir(self.meta_path):
             self._meta = pd.read_json(self.meta_path)
@@ -27,6 +27,7 @@ class VCTKMeta(MetaFrame):
             self._meta = pd.DataFrame(columns=self.column_names, data={})
         # setup parameters
         self._num_speakers = None
+        self.sr = sr
 
     @property
     def columns(self) -> List[Tuple[MetaType, str]]:
@@ -36,10 +37,6 @@ class VCTKMeta(MetaFrame):
     @property
     def meta(self) -> pd.DataFrame:
         return self._meta
-
-    @property
-    def sr(self) -> int:
-        return 22050
 
     @property
     def num_speakers(self):
