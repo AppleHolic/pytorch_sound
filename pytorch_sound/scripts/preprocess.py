@@ -1,7 +1,5 @@
 import glob
 import os
-from itertools import repeat
-
 import fire
 import librosa
 import numpy as np
@@ -23,27 +21,37 @@ def process_all(args: Tuple[str]):
     Do rms normalization, change codec and sample rate
     :param args: in / out file path
     """
-    in_file, out_file = args
+    in_file, out_file, out_sr = args
 
-    norm = FFmpegNormalize(normalization_type='rms', audio_codec='pcm_f32le', sample_rate=settings.SAMPLE_RATE)
+    norm = FFmpegNormalize(normalization_type='rms', audio_codec='pcm_f32le', sample_rate=out_sr)
     norm.add_media_file(in_file, out_file)
     norm.run_normalization()
 
 
-def load_split_numpy(args: Tuple[str]):
+def resample(args: Tuple[str]):
+    """
+    Resampling audio worker function with using ffmpeg.
+    Do rms normalization, change codec and sample rate
+    :param args: in / out file path
+    """
+    in_file, out_file, out_sr = args
+    command = 'sox {} -ar {} {} rate'.format(in_file, out_sr, out_file)
+    os.system(command)
+
+
+def load_and_numpy_audio(args: Tuple[str]):
     """
     When audio files are very big, it brings more file loading time.
     So, convert audio files to numpy files
     :param args: in / out file path
     """
-    in_file, out_file, wav_len = args
+    in_file, out_file = args
 
     # load audio file with librosa
     wav, _ = librosa.load(in_file, sr=None)
 
     # save wav array
-    for idx in range(0, len(wav) - wav_len, wav_len):
-        np.save(out_file.replace('.npy', '.{}.npy'.format(idx)), wav[idx: idx+wav_len])
+    np.save(out_file, wav)
 
 
 def read_and_write(args: Tuple[str]):
@@ -92,7 +100,8 @@ class Processor:
         """
         # make txt list
         print('Lookup file list...')
-        in_txt_list = glob.glob(os.path.join(in_dir, '**', '*.txt'))
+        in_txt_list = glob.glob(os.path.join(in_dir, '*.txt'))
+        in_txt_list += glob.glob(os.path.join(in_dir, '**', '*.txt'))
         in_txt_list += glob.glob(os.path.join(in_dir, '**', '**', '*.txt'))
         in_txt_list += glob.glob(os.path.join(in_dir, '**', '**', '**', '*.txt'))
 
@@ -119,7 +128,8 @@ class Processor:
 
         # loop up wave files
         print('Lookup file list...')
-        in_wav_list = glob.glob(os.path.join(in_dir, '**', '*.wav'))
+        in_wav_list = glob.glob(os.path.join(in_dir, '*.wav'))
+        in_wav_list += glob.glob(os.path.join(in_dir, '**', '*.wav'))
         in_wav_list += glob.glob(os.path.join(in_dir, '**', '**', '*.wav'))
         in_wav_list += glob.glob(os.path.join(in_dir, '**', '**', '**', '*.wav'))
 
@@ -138,29 +148,45 @@ class Processor:
         return in_wav_list, out_wav_list
 
     @staticmethod
-    def preprocess_audio(in_dir: str, out_dir: str):
+    def preprocess_audio(in_dir: str, out_dir: str, sample_rate: int = 22050):
         """
         Preprocess audios given base directory and target directory with multi thread function.
         :param in_dir: base directory of data files
         :param out_dir: target directory
+        :param sample_rate: target audio sample rate
         """
         in_wav_list, out_wav_list = __class__.__get_wave_file_list(in_dir, out_dir)
 
         # do multi process
-        go_multiprocess(process_all, list(zip(in_wav_list, out_wav_list)))
+        go_multiprocess(process_all, list(zip(in_wav_list, out_wav_list, [sample_rate] * len(in_wav_list))))
 
     @staticmethod
-    def voice_bank(in_dir: str, out_dir: str, min_wav_rate: int = 0, max_wav_rate: int = 9999):
+    def resample_audio(in_dir: str, out_dir: str, sample_rate: int):
+        """
+        Resample audios given base directory and target directory with multi thread function.
+        :param in_dir: base directory of data files
+        :param out_dir: target directory
+        :param sample_rate: target audio sample rate
+        """
+        in_wav_list, out_wav_list = __class__.__get_wave_file_list(in_dir, out_dir)
+
+        # do multi process
+        go_multiprocess(resample, list(zip(in_wav_list, out_wav_list, [sample_rate] * len(in_wav_list))))
+
+    @staticmethod
+    def voice_bank(in_dir: str, out_dir: str, min_wav_rate: int = 0,
+                   max_wav_rate: int = 9999, sample_rate: int = 22050):
         """
         Pre-process from downloaded voice bank files to loadable files and make meta files
         :param in_dir: base directory of data files
         :param out_dir: target directory
         :param min_wav_rate: minimum wave duration
         :param max_wav_rate: maximum wave duration
+        :param sample_rate: target audio sample rate
         """
         # preprocess audios
         print('Start to process audio files!')
-        __class__.preprocess_audio(in_dir, out_dir)
+        __class__.preprocess_audio(in_dir, out_dir, sample_rate=sample_rate)
 
         print('Finishing...')
 
@@ -201,7 +227,7 @@ class Processor:
         meta.make_meta(out_dir, settings.MIN_WAV_RATE, settings.MAX_WAV_RATE, settings.MIN_TXT_RATE)
 
     @staticmethod
-    def vctk(in_dir: str, out_dir: str):
+    def vctk(in_dir: str, out_dir: str, sample_rate: int = 22050):
         """
         Pre-process from downloaded VCTK files to loadable files and make meta files.
         It is processed with default audio settings. See pytorch_sound/settings.py
@@ -238,7 +264,7 @@ class Processor:
 
         # preprocess audio files
         print('Start Audio Processing ...')
-        go_multiprocess(process_all, list(zip(wave_file_list, out_wav_list)))
+        go_multiprocess(process_all, list(zip(wave_file_list, out_wav_list, [sample_rate] * len(wave_file_list))))
 
         # copy text files
         go_multiprocess(read_and_write, list(zip(txt_file_list, out_txt_list)))
@@ -249,7 +275,7 @@ class Processor:
         meta.make_meta(out_dir, out_wav_list, out_txt_list)
 
     @staticmethod
-    def dsd100(data_dir: str, wav_subset_len: int = 44100 * 10):
+    def dsd100(data_dir: str):
         """
         DSD100 is different to others, it just make meta file to load directly original ones.
         :param data_dir: Data root directory
@@ -265,9 +291,9 @@ class Processor:
         # save as numpy file
         print('Save as numpy files..')
         print('- Mixture File')
-        go_multiprocess(load_split_numpy, list(zip(mixture_list, out_mixture_list, repeat(wav_subset_len, len(mixture_list)))))
+        go_multiprocess(load_and_numpy_audio, list(zip(mixture_list, out_mixture_list)))
         print('- Vocals File')
-        go_multiprocess(load_split_numpy, list(zip(vocals_list, out_vocals_list, repeat(wav_subset_len, len(vocals_list)))))
+        go_multiprocess(load_and_numpy_audio, list(zip(vocals_list, out_vocals_list)))
 
         meta_dir = os.path.join(data_dir, 'meta')
         meta = DSD100Meta(meta_dir)
