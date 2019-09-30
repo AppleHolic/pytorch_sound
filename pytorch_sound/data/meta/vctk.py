@@ -18,7 +18,7 @@ class VCTKMeta(MetaFrame):
     """
     frame_file_names: List[str] = ['all_meta.json', 'train_meta.json', 'val_meta.json']
 
-    def __init__(self, meta_path: str = '', sr: int = sr):
+    def __init__(self, meta_path: str = '', sr: int = 22050):
         self.meta_path = meta_path
         if os.path.exists(self.meta_path) and not os.path.isdir(self.meta_path):
             self._meta = pd.read_json(self.meta_path)

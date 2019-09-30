@@ -49,11 +49,14 @@ def load_and_numpy_audio(args: Tuple[str]):
     """
     in_file, out_file = args
 
-    # load audio file with librosa
-    wav, _ = librosa.load(in_file, sr=None)
+    try:
+        # load audio file with librosa
+        wav, _ = librosa.load(in_file, sr=None)
 
-    # save wav array
-    np.save(out_file, wav)
+        # save wav array
+        np.save(out_file, wav)
+    except Exception:
+        print('Failed to convert on {}'.format(str(args)))
 
 
 def read_and_write(args: Tuple[str]):
@@ -305,7 +308,7 @@ class Processor:
     def medleydb(in_dir: str):
         """
         preprocess MedleyDB.
-        MedleyDB is the dataset has both seperated sound sources and mixture of them.
+        MedleyDB is the dataset has both separated sound sources and mixture of them.
         Referece Link : https://github.com/marl/medleydb
         :param in_dir: Downloaded path that has V1 and/or V2
         """
@@ -314,7 +317,7 @@ class Processor:
         wav_list = list(map(str, Path(in_dir).glob('**/*.wav')))
 
         # make numpy audio files
-        npy_arg_list = [(path, path.replace('.wav', '.npy')) for path in wav_list]
+        npy_arg_list = [((path, path.replace('.wav', '.npy')),) for path in wav_list]
 
         # run parallel
         print('Save wave files as numpy ...')

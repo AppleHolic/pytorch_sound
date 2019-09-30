@@ -15,6 +15,7 @@ def go_multiprocess(worker_func: Callable, inputs: List[Any], num_workers: int =
     :param inputs: list of arguments for worker function
     :return: results
     """
+    # TODO: update code lines using this function
 
     # declare pool
     if not num_workers:
