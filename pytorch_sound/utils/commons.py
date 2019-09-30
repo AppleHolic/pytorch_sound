@@ -1,32 +1,27 @@
-import multiprocessing
 import logging
 import torch
+from tqdm import tqdm
+from joblib import Parallel, delayed, cpu_count
 from typing import Dict, Callable, List, Any
 
 
 __all__ = ['LOGGER', 'go_multiprocess']
 
 
-def go_multiprocess(worker_func: Callable, inputs: List[Any]) -> List[Any]:
+def go_multiprocess(worker_func: Callable, inputs: List[Any], num_workers: int = None) -> List[Any]:
     """
-    Run and return worker function using multiprocessing.Pool.
+    Run and return worker function using joblib.
     :param worker_func: callable worker function
     :param inputs: list of arguments for worker function
     :return: results
     """
 
     # declare pool
-    cpu_count = multiprocessing.cpu_count() // 2
+    if not num_workers:
+        num_workers = cpu_count() // 2
 
-    res = []
-
-    with multiprocessing.Pool(cpu_count) as pool:
-        for i in range(0, len(inputs), cpu_count):
-            start_idx, end_idx = i, i + cpu_count
-            res += pool.map(worker_func, inputs[start_idx:end_idx])
-            print('{}/{}\t{}() processed.'.format(i + 1, len(inputs), worker_func.__name__))
-
-    return res
+    results = Parallel(n_jobs=num_workers)(delayed(worker_func)(*args) for args in tqdm(inputs))
+    return results
 
 
 def get_logger(name: str):
