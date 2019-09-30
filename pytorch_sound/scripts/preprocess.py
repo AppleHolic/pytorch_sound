@@ -3,11 +3,13 @@ import os
 import fire
 import librosa
 import numpy as np
+from pathlib import Path
 from typing import Tuple, List
 from ffmpeg_normalize import FFmpegNormalize
 from tqdm import tqdm
 from pytorch_sound import settings
 from pytorch_sound.data.meta.libri_tts import LibriTTSMeta
+from pytorch_sound.data.meta.medleydb import MedleyDBMeta
 from pytorch_sound.data.meta.vctk import VCTKMeta
 from pytorch_sound.data.meta.voice_bank import VoiceBankMeta
 from pytorch_sound.data.meta.dsd100 import DSD100Meta
@@ -298,6 +300,29 @@ class Processor:
         meta_dir = os.path.join(data_dir, 'meta')
         meta = DSD100Meta(meta_dir)
         meta.make_meta(data_dir)
+
+    @staticmethod
+    def medleydb(in_dir: str):
+        """
+        preprocess MedleyDB.
+        MedleyDB is the dataset has both seperated sound sources and mixture of them.
+        Referece Link : https://github.com/marl/medleydb
+        :param in_dir: Downloaded path that has V1 and/or V2
+        """
+        # lookup files
+        print('Lookup wave files ...')
+        wav_list = list(map(str, Path(in_dir).glob('**/*.wav')))
+
+        # make numpy audio files
+        npy_arg_list = [(path, path.replace('.wav', '.npy')) for path in wav_list]
+
+        # run parallel
+        print('Save wave files as numpy ...')
+        go_multiprocess(load_and_numpy_audio, npy_arg_list)
+
+        meta_dir = os.path.join(in_dir, 'meta')
+        meta = MedleyDBMeta(meta_dir)
+        meta.make_meta(in_dir)
 
 
 if __name__ == '__main__':
