@@ -4,7 +4,7 @@ import glob
 import pandas as pd
 import numpy as np
 from typing import List, Tuple
-from pytorch_sound.data.dataset import SpeechDataLoader
+from pytorch_sound.data.dataset import SpeechDataLoader, SpeechDataset
 from pytorch_sound.data.meta import MetaFrame, MetaType
 
 
@@ -56,7 +56,7 @@ class MedleyDBMeta(MetaFrame):
 
         # 3. load all mixture files
         print('Lookup mix files')
-        mix_file_list = glob.glob(os.path.join(root_dir, '**', '**', '*.npy'))
+        mix_file_list = [p.replace('.wav', '.npy') for p in glob.glob(os.path.join(root_dir, '**', '**', '*.wav'))]
 
         # 4. get mix/vocal pairs
         print('Matching mix / vocal pairs')
@@ -177,7 +177,25 @@ def get_mix_vocal_pairs(mix_file_list: List[str], meta_match_mixkey: List[str], 
 
 def get_datasets(meta_dir: str, batch_size: int, num_workers: int,
                  fix_len: int = 0, audio_mask: bool = False) -> Tuple[SpeechDataLoader, SpeechDataLoader]:
-    raise NotImplementedError('To be coded')
+    assert os.path.isdir(meta_dir), '{} is not valid directory path!'
+
+    train_file, valid_file = MedleyDBMeta.frame_file_names[1:]
+
+    # load meta file
+    train_meta = MedleyDBMeta(os.path.join(meta_dir, train_file))
+    valid_meta = MedleyDBMeta(os.path.join(meta_dir, valid_file))
+
+    # create dataset
+    train_dataset = SpeechDataset(train_meta, fix_len=fix_len, audio_mask=audio_mask)
+    valid_dataset = SpeechDataset(valid_meta, fix_len=fix_len, audio_mask=audio_mask)
+
+    # create data loader
+    train_loader = SpeechDataLoader(train_dataset, batch_size=batch_size,
+                                    num_workers=num_workers, is_bucket=False)
+    valid_loader = SpeechDataLoader(valid_dataset, batch_size=batch_size,
+                                    num_workers=num_workers, is_bucket=False)
+
+    return train_loader, valid_loader
 
 
 if __name__ == '__main__':

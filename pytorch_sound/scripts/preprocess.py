@@ -1,12 +1,16 @@
 import glob
 import os
+from collections import defaultdict
+
 import fire
 import librosa
 import numpy as np
+import pandas as pd
 from pathlib import Path
 from typing import Tuple, List
 from ffmpeg_normalize import FFmpegNormalize
 from tqdm import tqdm
+from joblib import Parallel, delayed, cpu_count
 from pytorch_sound import settings
 from pytorch_sound.data.meta.libri_tts import LibriTTSMeta
 from pytorch_sound.data.meta.medleydb import MedleyDBMeta
@@ -53,6 +57,9 @@ def load_and_numpy_audio(args: Tuple[str]):
         # load audio file with librosa
         wav, _ = librosa.load(in_file, sr=None)
 
+        if len(wav.shape) > 1:
+            wav = wav[0]
+
         # save wav array
         np.save(out_file, wav)
     except Exception:
@@ -92,6 +99,32 @@ def get_sub_dir(in_dir: str, file_path: str):
     sub_path = get_sub_paths(in_dir, file_path)
     sub_path = '/'.join(sub_path.split('/')[:-1])
     return sub_path
+
+
+def partialize_npy_wave(npy_path: str, num_partial_sample: int, min_partial_length: int = 0):
+    # load numpy wave
+    arr = np.load(npy_path)
+    if len(arr.shape) > 1:
+        arr = arr[0]
+    num_partial_sample = int(num_partial_sample)
+
+    # loop
+    partial_path_list = []
+    for idx, start_idx in enumerate(range(0, len(arr), num_partial_sample)):
+        # partial output path
+        partial_out_path = npy_path.replace('.npy', '_{:05d}.npy'.format(idx + 1))
+
+        end_idx = start_idx + num_partial_sample
+        partial_arr = arr[start_idx:end_idx]
+
+        if min_partial_length:
+            if len(partial_arr) < min_partial_length:
+                continue
+
+        np.save(partial_out_path, partial_arr)
+        partial_path_list.append(partial_out_path)
+
+    return npy_path, partial_path_list
 
 
 class Processor:
@@ -326,6 +359,74 @@ class Processor:
         meta_dir = os.path.join(in_dir, 'meta')
         meta = MedleyDBMeta(meta_dir)
         meta.make_meta(in_dir)
+
+    @staticmethod
+    def partialize_medleydb(meta_dir: str, seconds: int):
+        # TODO: Check mismatching problem
+        # load meta inst
+        print('Load meta information ...')
+        train_file, valid_file = MedleyDBMeta.frame_file_names[1:]
+
+        # load meta file
+        train_meta = MedleyDBMeta(os.path.join(meta_dir, train_file))
+        valid_meta = MedleyDBMeta(os.path.join(meta_dir, valid_file))
+        sample_length = seconds * train_meta.sr
+        target_columns = ['mixture_filename', 'voice_filename']
+
+        # collect all files
+        target_files = []
+        for column in target_columns:
+            target_files.extend(train_meta.meta[column].values)
+            target_files.extend(valid_meta.meta[column].values)
+
+        # do parallel
+        print('Partializing process is started.')
+        num_workers = cpu_count() // 2
+
+        results = Parallel(n_jobs=num_workers)(
+            delayed(partialize_npy_wave)(target_file, sample_length, sample_length) for target_file in tqdm(target_files)
+        )
+
+        # make new meta
+        new_train_meta_path = train_file.replace('.json', '_partial.json')
+        new_valid_meta_path = valid_file.replace('.json', '_partial.json')
+        print('Make new meta, and write it on {}\t{}'.format(new_train_meta_path, new_valid_meta_path))
+
+        partial_keymap = {npy_path: partial_path_list for npy_path, partial_path_list in results}
+
+        # train meta
+        train_info = defaultdict(list)
+        valid_info = defaultdict(list)
+        for idx, series in train_meta.meta.iterrows():
+            mixture_filename, voice_filename = series['mixture_filename'], series['voice_filename']
+            mix_parts = partial_keymap[mixture_filename]
+            voice_parts = partial_keymap[voice_filename]
+
+            if len(mix_parts) != len(voice_parts):
+                print(str(series))
+                continue
+
+            train_info['mixture_filename'].extend(mix_parts)
+            train_info['voice_filename'].extend(voice_parts)
+
+        for idx, series in valid_meta.meta.iterrows():
+            mixture_filename, voice_filename = series['mixture_filename'], series['voice_filename']
+            mix_parts = partial_keymap[mixture_filename]
+            voice_parts = partial_keymap[voice_filename]
+
+            if len(mix_parts) != len(voice_parts):
+                print(str(series))
+                continue
+
+            valid_info['mixture_filename'].extend(mix_parts)
+            valid_info['voice_filename'].extend(voice_parts)
+
+        # make data frame
+        new_train_df = pd.DataFrame(dict(train_info))
+        new_valid_df = pd.DataFrame(dict(valid_info))
+
+        new_train_df.to_json(os.path.join(meta_dir, new_train_meta_path))
+        new_valid_df.to_json(os.path.join(meta_dir, new_valid_meta_path))
 
 
 if __name__ == '__main__':

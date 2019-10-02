@@ -1,7 +1,6 @@
 import pandas as pd
 import os
 import glob
-from collections import defaultdict
 from typing import List, Tuple
 from pytorch_sound.data.dataset import SpeechDataLoader, SpeechDataset
 from pytorch_sound.data.meta import MetaFrame, MetaType
