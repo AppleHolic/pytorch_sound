@@ -1,11 +1,11 @@
 import glob
 import os
-from collections import defaultdict
-
 import fire
 import librosa
 import numpy as np
 import pandas as pd
+
+from collections import defaultdict
 from pathlib import Path
 from typing import Tuple, List
 from ffmpeg_normalize import FFmpegNormalize
@@ -18,41 +18,45 @@ from pytorch_sound.data.meta.vctk import VCTKMeta
 from pytorch_sound.data.meta.voice_bank import VoiceBankMeta
 from pytorch_sound.data.meta.dsd100 import DSD100Meta
 from pytorch_sound.scripts.libri_tts.fetch import fetch_structure
-from pytorch_sound.utils.commons import go_multiprocess
 
 
-def process_all(args: Tuple[str]):
+def process_all(in_file: str, out_file: str, out_sr: int):
     """
     Audio processing worker function with using ffmpeg.
     Do rms normalization, change codec and sample rate
-    :param args: in / out file path
     """
-    in_file, out_file, out_sr = args
-
     norm = FFmpegNormalize(normalization_type='rms', audio_codec='pcm_f32le', sample_rate=out_sr)
     norm.add_media_file(in_file, out_file)
     norm.run_normalization()
 
 
-def resample(args: Tuple[str]):
+def load_split_numpy(in_file: str, out_file: str, wav_len: int):
+    """
+    When audio files are very big, it brings more file loading time.
+    So, convert audio files to numpy files
+    """
+    # load audio file with librosa
+    wav, _ = librosa.load(in_file, sr=None)
+
+    # save wav array
+    for idx in range(0, len(wav) - wav_len, wav_len):
+        np.save(out_file.replace('.npy', '.{}.npy'.format(idx)), wav[idx: idx+wav_len])
+
+
+def resample(in_file: str, out_file: str, out_sr: int):
     """
     Resampling audio worker function with using ffmpeg.
     Do rms normalization, change codec and sample rate
-    :param args: in / out file path
     """
-    in_file, out_file, out_sr = args
     command = 'sox {} -ar {} {} rate'.format(in_file, out_sr, out_file)
     os.system(command)
 
 
-def load_and_numpy_audio(args: Tuple[str]):
+def load_and_numpy_audio(in_file: str, out_file: str):
     """
     When audio files are very big, it brings more file loading time.
     So, convert audio files to numpy files
-    :param args: in / out file path
     """
-    in_file, out_file = args
-
     try:
         # load audio file with librosa
         wav, _ = librosa.load(in_file, sr=None)
@@ -63,15 +67,14 @@ def load_and_numpy_audio(args: Tuple[str]):
         # save wav array
         np.save(out_file, wav)
     except Exception:
-        print('Failed to convert on {}'.format(str(args)))
+        print('Failed to convert on {}'.format(str((in_file, out_file))))
 
 
-def read_and_write(args: Tuple[str]):
+def read_and_write(in_file: str, out_file: str):
     """
     copy file function
     :param args: in / out file path
     """
-    in_file, out_file = args
     with open(in_file, 'r') as r:
         with open(out_file, 'w') as w:
             w.write(r.read())
@@ -129,6 +132,8 @@ def partialize_npy_wave(npy_path: str, num_partial_sample: int, min_partial_leng
 
 class Processor:
 
+    num_workers = cpu_count() // 2
+
     @staticmethod
     def __copy_txt(in_dir: str, out_dir: str):
         """
@@ -153,7 +158,9 @@ class Processor:
 
         out_txt_list = [os.path.join(out_dir, get_sub_paths(in_dir, in_txt_path)) for in_txt_path in in_txt_list]
 
-        go_multiprocess(read_and_write, list(zip(in_txt_list, out_txt_list)))
+        Parallel(n_jobs=__class__.num_workers)(
+            delayed(read_and_write)(*args) for args in tqdm(zip(in_txt_list, out_txt_list))
+        )
 
     @staticmethod
     def __get_wave_file_list(in_dir: str, out_dir: str) -> Tuple[List[str], List[str]]:
@@ -196,7 +203,10 @@ class Processor:
         in_wav_list, out_wav_list = __class__.__get_wave_file_list(in_dir, out_dir)
 
         # do multi process
-        go_multiprocess(process_all, list(zip(in_wav_list, out_wav_list, [sample_rate] * len(in_wav_list))))
+        Parallel(n_jobs=__class__.num_workers)(
+            delayed(read_and_write)
+            (*args, sample_rate) for args in tqdm(zip(in_wav_list, out_wav_list))
+        )
 
     @staticmethod
     def resample_audio(in_dir: str, out_dir: str, sample_rate: int):
@@ -209,7 +219,10 @@ class Processor:
         in_wav_list, out_wav_list = __class__.__get_wave_file_list(in_dir, out_dir)
 
         # do multi process
-        go_multiprocess(resample, list(zip(in_wav_list, out_wav_list, [sample_rate] * len(in_wav_list))))
+        Parallel(n_jobs=__class__.num_workers)(
+            delayed(resample)
+            (*args, sample_rate) for args in tqdm(zip(in_wav_list, out_wav_list))
+        )
 
     @staticmethod
     def voice_bank(in_dir: str, out_dir: str, min_wav_rate: int = 0,
@@ -302,10 +315,16 @@ class Processor:
 
         # preprocess audio files
         print('Start Audio Processing ...')
-        go_multiprocess(process_all, list(zip(wave_file_list, out_wav_list, [sample_rate] * len(wave_file_list))))
+        Parallel(n_jobs=__class__.num_workers)(
+            delayed(process_all)
+            (*args, sample_rate) for args in tqdm(zip(wave_file_list, out_wav_list))
+        )
 
         # copy text files
-        go_multiprocess(read_and_write, list(zip(txt_file_list, out_txt_list)))
+        Parallel(n_jobs=__class__.num_workers)(
+            delayed(read_and_write)
+            (*args) for args in tqdm(zip(txt_file_list, out_txt_list))
+        )
 
         # make meta files
         meta_dir = os.path.join(out_dir, 'meta')
@@ -313,7 +332,7 @@ class Processor:
         meta.make_meta(out_dir, out_wav_list, out_txt_list)
 
     @staticmethod
-    def dsd100(data_dir: str):
+    def dsd100(data_dir: str, wav_subset_len: int = 44100 * 10):
         """
         DSD100 is different to others, it just make meta file to load directly original ones.
         :param data_dir: Data root directory
@@ -329,16 +348,22 @@ class Processor:
         # save as numpy file
         print('Save as numpy files..')
         print('- Mixture File')
-        go_multiprocess(load_and_numpy_audio, list(zip(mixture_list, out_mixture_list)))
+        Parallel(n_jobs=__class__.num_workers)(
+            delayed(load_split_numpy)
+            (*args, wav_subset_len) for args in tqdm(zip(mixture_list, out_mixture_list))
+        )
         print('- Vocals File')
-        go_multiprocess(load_and_numpy_audio, list(zip(vocals_list, out_vocals_list)))
+        Parallel(n_jobs=__class__.num_workers)(
+            delayed(load_split_numpy)
+            (*args, wav_subset_len) for args in tqdm(zip(vocals_list, out_vocals_list))
+        )
 
         meta_dir = os.path.join(data_dir, 'meta')
         meta = DSD100Meta(meta_dir)
         meta.make_meta(data_dir)
 
     @staticmethod
-    def medleydb(in_dir: str):
+    def medleydb(in_dir: str, wav_subset_seconds: int = 10):
         """
         preprocess MedleyDB.
         MedleyDB is the dataset has both separated sound sources and mixture of them.
@@ -350,28 +375,37 @@ class Processor:
         wav_list = list(map(str, Path(in_dir).glob('**/*.wav')))
 
         # make numpy audio files
-        npy_arg_list = [((path, path.replace('.wav', '.npy')),) for path in wav_list]
-
         # run parallel
         print('Save wave files as numpy ...')
-        go_multiprocess(load_and_numpy_audio, npy_arg_list)
+        Parallel(n_jobs=__class__.num_workers)(
+            delayed(load_and_numpy_audio)
+            (path, path.replace('.wav', '.npy')) for path in tqdm(wav_list)
+        )
 
         meta_dir = os.path.join(in_dir, 'meta')
         meta = MedleyDBMeta(meta_dir)
         meta.make_meta(in_dir)
 
+        print('Start to make partitions!')
+        __class__.partialize(meta_dir, wav_subset_seconds)
+
     @staticmethod
-    def partialize_medleydb(meta_dir: str, seconds: int):
-        # TODO: Check mismatching problem
+    def partialize(meta_dir: str, seconds: int):
         # load meta inst
         print('Load meta information ...')
         train_file, valid_file = MedleyDBMeta.frame_file_names[1:]
+        train_file = os.path.join(meta_dir, train_file)
+        valid_file = os.path.join(meta_dir, valid_file)
 
         # load meta file
-        train_meta = MedleyDBMeta(os.path.join(meta_dir, train_file))
-        valid_meta = MedleyDBMeta(os.path.join(meta_dir, valid_file))
+        train_meta = MedleyDBMeta(train_file)
+        valid_meta = MedleyDBMeta(valid_file)
         sample_length = seconds * train_meta.sr
         target_columns = ['mixture_filename', 'voice_filename']
+
+        # backup
+        read_and_write(train_file, train_file.replace('.json', '_backup.json'))
+        read_and_write(valid_file, valid_file.replace('.json', '_backup.json'))
 
         # collect all files
         target_files = []
@@ -384,13 +418,12 @@ class Processor:
         num_workers = cpu_count() // 2
 
         results = Parallel(n_jobs=num_workers)(
-            delayed(partialize_npy_wave)(target_file, sample_length, sample_length) for target_file in tqdm(target_files)
+            delayed(partialize_npy_wave)
+            (target_file, sample_length, sample_length) for target_file in tqdm(target_files)
         )
 
         # make new meta
-        new_train_meta_path = train_file.replace('.json', '_partial.json')
-        new_valid_meta_path = valid_file.replace('.json', '_partial.json')
-        print('Make new meta, and write it on {}\t{}'.format(new_train_meta_path, new_valid_meta_path))
+        print('Make new meta, and write it on {}\t{}'.format(train_file, valid_file))
 
         partial_keymap = {npy_path: partial_path_list for npy_path, partial_path_list in results}
 
@@ -425,8 +458,8 @@ class Processor:
         new_train_df = pd.DataFrame(dict(train_info))
         new_valid_df = pd.DataFrame(dict(valid_info))
 
-        new_train_df.to_json(os.path.join(meta_dir, new_train_meta_path))
-        new_valid_df.to_json(os.path.join(meta_dir, new_valid_meta_path))
+        new_train_df.to_json(train_file)
+        new_valid_df.to_json(valid_file)
 
 
 if __name__ == '__main__':
