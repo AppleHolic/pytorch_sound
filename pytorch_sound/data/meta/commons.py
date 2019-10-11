@@ -4,13 +4,15 @@ from collections import defaultdict
 from typing import Tuple
 
 
-def split_train_val_frame(data_frame: DataFrame, val_rate: float = 0.1) -> Tuple[DataFrame, DataFrame]:
+def split_train_val_frame(data_frame: DataFrame, val_rate: float = 0.1,
+                          label_key: str = 'speaker') -> Tuple[DataFrame, DataFrame]:
     """
     Split DataFrame into train and validation.
     If it has 'speaker' columns, it splits frame using speaker column dependently.
     Not of that, it splits frame randomly.
     :param data_frame: whole data(meta) frame
     :param val_rate: percentage of validation
+    :param label_key: standard to be separated with label dist.
     :return: train and valid data(meta) frame
     """
     # total length
@@ -19,9 +21,9 @@ def split_train_val_frame(data_frame: DataFrame, val_rate: float = 0.1) -> Tuple
     # split
     idx_list = list(range(total_len))
 
-    if 'speaker' in data_frame:
+    if label_key in data_frame:
         temp = defaultdict(list)
-        for idx, spk in enumerate(data_frame['speaker'].values):
+        for idx, spk in enumerate(data_frame[label_key].values):
             temp[spk].append(idx)
 
         # shuffle

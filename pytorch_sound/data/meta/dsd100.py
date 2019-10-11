@@ -1,7 +1,6 @@
 import pandas as pd
 import os
 import glob
-from collections import defaultdict
 from typing import List, Tuple
 from pytorch_sound.data.dataset import SpeechDataLoader, SpeechDataset
 from pytorch_sound.data.meta import MetaFrame, MetaType
@@ -15,12 +14,13 @@ class DSD100Meta(MetaFrame):
     """
     frame_file_names: List[str] = ['all_meta.json', 'train_meta.json', 'val_meta.json']
 
-    def __init__(self, meta_path: str = ''):
+    def __init__(self, meta_path: str = '', sr: int = 44100):
         self.meta_path = meta_path
         if os.path.exists(self.meta_path) and not os.path.isdir(self.meta_path):
             self._meta = pd.read_json(self.meta_path)
         else:
             self._meta = pd.DataFrame(columns=self.column_names, data={})
+        self.sr = sr
 
     @property
     def columns(self) -> List[Tuple[MetaType, str]]:
@@ -30,10 +30,6 @@ class DSD100Meta(MetaFrame):
     def meta(self) -> pd.DataFrame:
         return self._meta
 
-    @property
-    def sr(self) -> int:
-        return 44100
-
     def __len__(self):
         return len(self._meta)
 
@@ -41,10 +37,10 @@ class DSD100Meta(MetaFrame):
         # Use all audio files
         # directory names
         print('Lookup files ...')
-        mixture_list = glob.glob(os.path.join(root_dir, 'Mixtures', '**', '**', 'mixture.npy'))
+        mixture_list = glob.glob(os.path.join(root_dir, 'Mixtures', '**', '**', 'mixture.*.npy'))
 
         # It only extract vocals. If you wanna use other source, override it.
-        vocals_list = glob.glob(os.path.join(root_dir, 'Sources', '**', '**', 'vocals.npy'))
+        vocals_list = glob.glob(os.path.join(root_dir, 'Sources', '**', '**', 'vocals.*.npy'))
 
         # make meta dict
         print('Make meta information ...')
