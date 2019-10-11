@@ -43,7 +43,7 @@ class MedleyDBMeta(MetaFrame):
     def __len__(self):
         return len(self._meta)
 
-    def make_meta(self, root_dir: str, meta_dir: str = None):
+    def make_meta(self, root_dir: str, meta_dir: str = None, filter_non_vocal: bool = True):
         if not meta_dir:
             meta_dir = MEDLEYDB_META_DIR
 
@@ -61,6 +61,9 @@ class MedleyDBMeta(MetaFrame):
         # 4. get mix/vocal pairs
         print('Matching mix / vocal pairs')
         pair_meta = get_mix_vocal_pairs(mix_file_list, meta_match_mixkey, ext='npy')
+
+        if filter_non_vocal:
+            pair_meta = {key: voices for key, voices in pair_meta.items() if voices}
 
         # Each songs have a vocal track or several vocal tracks.
         # So, If the song has several tracks, It can be merged as one file being able to load their own fastly.
@@ -117,7 +120,8 @@ def load_and_merge_audios(mix_path: str, audio_npy_list: List[str]):
             audios = [np.load(npy_path)[np.newaxis, ...] for npy_path in audio_npy_list]
 
             # concat and return
-            audio = np.mean(audios, axis=0)
+            # audio = np.mean(audios, axis=0)
+            audio = np.sum(audios, axis=0)
             np.save(out_path, audio)
     except Exception:
         return -1
