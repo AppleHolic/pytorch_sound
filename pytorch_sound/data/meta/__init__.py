@@ -86,7 +86,7 @@ class MetaFrame:
         :param max_wav_rate: maximum wave duration
         :return: list of wave duration
         """
-        dur_list = go_multiprocess(get_wav_duration, wav_file_list)
+        dur_list = go_multiprocess(get_wav_duration, [(x,) for x in wav_file_list])
         # check pass
         pass_list = []
         for p, dur in zip(self._meta['pass'], dur_list):
