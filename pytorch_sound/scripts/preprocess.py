@@ -13,6 +13,7 @@ from tqdm import tqdm
 from joblib import Parallel, delayed, cpu_count
 from pytorch_sound import settings
 from pytorch_sound.data.meta.libri_tts import LibriTTSMeta
+from pytorch_sound.data.meta.ljspeech import LJSpeechMeta
 from pytorch_sound.data.meta.medleydb import MedleyDBMeta
 from pytorch_sound.data.meta.vctk import VCTKMeta
 from pytorch_sound.data.meta.voice_bank import VoiceBankMeta
@@ -330,6 +331,33 @@ class Processor:
         meta_dir = os.path.join(out_dir, 'meta')
         meta = VCTKMeta(meta_dir)
         meta.make_meta(out_dir, out_wav_list, out_txt_list)
+
+    @staticmethod
+    def ljspeech(in_dir: str, out_dir: str, meta_csv_path: str, sample_rate: int = 22050):
+        # lookup files
+        print('lookup files ...')
+        wav_file_list = glob.glob(os.path.join(in_dir, 'wavs', '*.wav'))
+        txt_info = pd.read_csv(meta_csv_path, header=None, sep='|')
+        txt_info.columns = ['id', 'text', 'normalized_text']
+
+        # make directory
+        os.makedirs(os.path.join(out_dir, 'wavs'), exist_ok=True)
+
+        # make output file list
+        out_dir = os.path.abspath(out_dir)
+        out_wav_list = [os.path.join(out_dir, 'wavs', os.path.basename(wav_path)) for wav_path in wav_file_list]
+
+        # preprocess audio files
+        print('Start Audio Processing ...')
+        # Parallel(n_jobs=__class__.num_workers)(
+        #     delayed(process_all)
+        #     (*args, sample_rate) for args in tqdm(zip(wav_file_list, out_wav_list))
+        # )
+
+        # make meta files
+        meta_dir = os.path.join(out_dir, 'meta')
+        meta = LJSpeechMeta(meta_dir)
+        meta.make_meta(out_wav_list, txt_info)
 
     @staticmethod
     def dsd100(data_dir: str, wav_subset_len: int = 44100 * 10):
