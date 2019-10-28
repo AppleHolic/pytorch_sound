@@ -349,10 +349,10 @@ class Processor:
 
         # preprocess audio files
         print('Start Audio Processing ...')
-        # Parallel(n_jobs=__class__.num_workers)(
-        #     delayed(process_all)
-        #     (*args, sample_rate) for args in tqdm(zip(wav_file_list, out_wav_list))
-        # )
+        Parallel(n_jobs=__class__.num_workers)(
+            delayed(process_all)
+            (*args, sample_rate) for args in tqdm(zip(wav_file_list, out_wav_list))
+        )
 
         # make meta files
         meta_dir = os.path.join(out_dir, 'meta')
