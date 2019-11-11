@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
 import librosa
+import numpy as np
 from torchaudio.functional import istft
-from torchaudio.transforms import AmplitudeToDB
+from torchaudio.transforms import AmplitudeToDB, MelSpectrogram
 
 
 class STFT(nn.Module):
@@ -28,16 +29,20 @@ class STFT(nn.Module):
         # pytorch official arguments
         self.n_fft = self.win_length
 
-    def transform(self, wav: torch.Tensor) -> torch.Tensor:
-        """
-        :param wav: wave tensor
-        :return: (N, Spec Dimension * 2, T) 3 dimensional stft tensor
-        """
+    def forward(self, wav: torch.Tensor) -> torch.Tensor:
         stft = torch.stft(
             wav, self.n_fft, self.hop_length, self.win_length, self.window, True,
             'reflect', False, True
         )  # (N, C, T, 2)
         real_part, img_part = [x.squeeze(3) for x in stft.chunk(2, 3)]
+        return real_part, img_part
+
+    def transform(self, wav: torch.Tensor) -> torch.Tensor:
+        """
+        :param wav: wave tensor
+        :return: (N, Spec Dimension * 2, T) 3 dimensional stft tensor
+        """
+        real_part, img_part = self.forward(wav)
         return torch.sqrt(real_part ** 2 + img_part ** 2), torch.atan2(img_part, real_part)
 
     def inverse(self, magnitude: torch.Tensor, phase: torch.Tensor) -> torch.Tensor:
@@ -59,35 +64,25 @@ class LogMelSpectrogram(nn.Module):
                  mel_min: float = 0., mel_max: float = None):
         super().__init__()
         self.mel_size = mel_size
-        self.min_db = min_db
-        self.max_db = max_db
+        # db to log
+        self.min_db = np.log(np.power(10, min_db / 10))
+        self.max_db = np.log(np.power(10, max_db / 10))
 
-        # make stft func
-        self.stft = STFT(filter_length=win_length, hop_length=hop_length)
-
-        # mel filter banks
-        mel_filter = librosa.filters.mel(sample_rate, n_fft, mel_size, fmin=mel_min, fmax=mel_max)
-        self.register_buffer('mel_filter', torch.tensor(mel_filter, dtype=torch.float))
+        self.melfunc = MelSpectrogram(sample_rate=sample_rate, n_fft=n_fft, win_length=win_length,
+                                      hop_length=hop_length, f_min=mel_min, f_max=mel_max, n_mels=mel_size,
+                                      window_fn=torch.hann_window)
 
         # amp2db function
         self.amp2db = AmplitudeToDB()
 
     def forward(self, wav: torch.tensor, log_offset: float = 1e-6) -> torch.tensor:
-        mag, phase = self.stft.transform(wav)
-
         # apply mel filter
-        mel = torch.matmul(self.mel_filter, mag)
-
-        # to db scale
-        mel = self.amp2db(mel)
-
-        # clip
-        mel = mel.clamp(self.min_db, self.max_db)
+        mel = self.melfunc(wav)
 
         # to log-space
         mel = torch.log(mel + log_offset)
 
-        return mel
+        return mel.clamp(self.min_db, self.max_db)
 
 
 class MelMasker(nn.Module):
