@@ -28,7 +28,7 @@ class STFT(nn.Module):
         # pytorch official arguments
         self.n_fft = self.win_length
 
-    def transform(self, wav=torch.Tensor) -> torch.Tensor:
+    def transform(self, wav: torch.Tensor) -> torch.Tensor:
         """
         :param wav: wave tensor
         :return: (N, Spec Dimension * 2, T) 3 dimensional stft tensor
@@ -37,15 +37,13 @@ class STFT(nn.Module):
             wav, self.n_fft, self.hop_length, self.win_length, self.window, True,
             'reflect', False, True
         )  # (N, C, T, 2)
-        return torch.cat(stft.chunk(2, 3), 1).squeeze(3)  # (N, C * 2, T)
+        real_part, img_part = [x.squeeze(3) for x in stft.chunk(2, 3)]
+        return torch.sqrt(real_part ** 2 + img_part ** 2), torch.atan2(img_part, real_part)
 
-    def inverse(self, stft=torch.Tensor) -> torch.Tensor:
-        """
-        :param stft: (N, Spec Dimension * 2, T) 3 dimensional stft tensor
-        :return: reconstructed wave tensor
-        """
+    def inverse(self, magnitude: torch.Tensor, phase: torch.Tensor) -> torch.Tensor:
         # match dimension
-        stft = torch.cat([x.unsqueeze(3) for x in stft.chunk(2, 1)], 3)
+        magnitude, phase = magnitude.unsqueeze(3), phase.unsqueeze(3)
+        stft = torch.cat([magnitude * torch.cos(phase), magnitude * torch.sin(phase)], dim=3)
         return istft(
             stft, self.n_fft, self.hop_length, self.win_length, self.window
         )
