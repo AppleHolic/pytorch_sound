@@ -1,109 +1,60 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import librosa
 import numpy as np
-from scipy.signal import get_window
-from librosa.util import pad_center
-from typing import Tuple
-
-try:
-    from torchaudio.transforms import MelSpectrogram as MelJit
-except ImportError:
-    MelJit = None
+from torchaudio.functional import istft
+from torchaudio.transforms import AmplitudeToDB, MelSpectrogram
 
 
 class STFT(nn.Module):
     """
-    Re-construct stft for calculating backward operation
-    refer on : https://github.com/pseeth/torch-stft/blob/master/torch_stft/stft.py
+    Match interface between original one and pytorch official implementation
     """
 
     def __init__(self, filter_length: int = 1024, hop_length: int = 512, win_length: int = None,
                  window: str = 'hann'):
         super().__init__()
+        # original arguments
         self.filter_length = filter_length
         self.hop_length = hop_length
-        self.win_length = win_length if win_length else filter_length
-        self.window = window
-        self.forward_transform = None
-        self.pad_amount = self.filter_length // 2
+        if win_length:
+            self.win_length = win_length
+        else:
+            self.win_length = self.filter_length
+        if window == 'hann':
+            self.register_buffer('window', torch.hann_window(self.win_length))
+        else:
+            raise NotImplemented(f'{window} is not implemented ! Use hann')
 
-        # make fft window
-        assert (filter_length >= self.win_length)
-        # get window and zero center pad it to filter_length
-        fft_window = get_window(window, self.win_length, fftbins=True)
-        fft_window = pad_center(fft_window, filter_length)
-        fft_window = torch.from_numpy(fft_window).float()
+        # pytorch official arguments
+        self.n_fft = self.win_length
 
-        # calculate fourer_basis
-        cut_off = int((self.filter_length / 2 + 1))
-        fourier_basis = np.fft.fft(np.eye(self.filter_length))
-        fourier_basis = np.vstack([
-            np.real(fourier_basis[:cut_off, :]),
-            np.imag(fourier_basis[:cut_off, :])
-        ])
+    def forward(self, wav: torch.Tensor) -> torch.Tensor:
+        stft = torch.stft(
+            wav, self.n_fft, self.hop_length, self.win_length, self.window, True,
+            'reflect', False, True
+        )  # (N, C, T, 2)
+        real_part, img_part = [x.squeeze(3) for x in stft.chunk(2, 3)]
+        return real_part, img_part
 
-        # make forward & inverse basis
-        forward_basis = torch.FloatTensor(fourier_basis[:, np.newaxis, :]) * fft_window
-        inverse_basis = torch.FloatTensor(
-            np.linalg.pinv(self.filter_length / self.hop_length * fourier_basis).T[:, np.newaxis, :]
+    def transform(self, wav: torch.Tensor) -> torch.Tensor:
+        """
+        :param wav: wave tensor
+        :return: (N, Spec Dimension * 2, T) 3 dimensional stft tensor
+        """
+        real_part, img_part = self.forward(wav)
+        return torch.sqrt(real_part ** 2 + img_part ** 2), torch.atan2(img_part, real_part)
+
+    def inverse(self, magnitude: torch.Tensor, phase: torch.Tensor) -> torch.Tensor:
+        # match dimension
+        magnitude, phase = magnitude.unsqueeze(3), phase.unsqueeze(3)
+        stft = torch.cat([magnitude * torch.cos(phase), magnitude * torch.sin(phase)], dim=3)
+        return istft(
+            stft, self.n_fft, self.hop_length, self.win_length, self.window
         )
 
-        self.register_buffer('square_window', fft_window ** 2)
-        self.register_buffer('forward_basis', forward_basis)
-        self.register_buffer('inverse_basis', inverse_basis)
 
-    def transform(self, wav: torch.tensor) -> Tuple[torch.tensor, torch.tensor]:
-        # reflect padding
-        wav = wav.unsqueeze(1).unsqueeze(1)
-        wav = F.pad(
-            wav,
-            (self.pad_amount, self.pad_amount, 0, 0),
-            mode='reflect'
-        ).squeeze(1)
-
-        # conv
-        forward_trans = F.conv1d(
-            wav, self.forward_basis,
-            stride=self.hop_length, padding=0
-        )
-        real_part, imag_part = forward_trans.chunk(2, 1)
-
-        return torch.sqrt(real_part ** 2 + imag_part ** 2), torch.atan2(imag_part.data, real_part.data)
-
-    def inverse(self, magnitude: torch.tensor, phase: torch.tensor, eps: float = 1e-9) -> torch.tensor:
-        conc = torch.cat(
-            [magnitude * torch.cos(phase), magnitude * torch.sin(phase)], dim=1)
-
-        inverse_transform = F.conv_transpose1d(
-            conc,
-            self.inverse_basis,
-            stride=self.hop_length,
-            padding=0)
-
-        # remove window effect
-        if self.window is not None:
-            n_frames = conc.size(-1)
-            inverse_size = inverse_transform.size(-1)
-            window_filter = torch.zeros(
-                inverse_size
-            ).type_as(inverse_transform).fill_(eps)
-
-            for idx in range(n_frames):
-                sample = idx * self.hop_length
-                window_filter[sample:min(inverse_size, sample + self.filter_length)] \
-                    += self.square_window[:max(0, min(self.filter_length, inverse_size - sample))]
-
-            inverse_transform /= window_filter
-
-            # scale by hop ratio
-            inverse_transform *= self.filter_length / self.hop_length
-
-        return inverse_transform[..., self.pad_amount:-self.pad_amount].squeeze(1)
-
-
-class MelSpectrogram(nn.Module):
+class LogMelSpectrogram(nn.Module):
     """
     Mel spectrogram module with above STFT class
     """
@@ -113,34 +64,29 @@ class MelSpectrogram(nn.Module):
                  mel_min: float = 0., mel_max: float = None):
         super().__init__()
         self.mel_size = mel_size
-        self.min_db = min_db
-        self.max_db = max_db
+        # db to log
+        self.min_db = np.log(np.power(10, min_db / 10))
+        self.max_db = np.log(np.power(10, max_db / 10))
 
-        self.stft = STFT(filter_length=win_length, hop_length=hop_length)
+        self.melfunc = MelSpectrogram(sample_rate=sample_rate, n_fft=n_fft, win_length=win_length,
+                                      hop_length=hop_length, f_min=mel_min, f_max=mel_max, n_mels=mel_size,
+                                      window_fn=torch.hann_window)
 
-        # mel filter banks
-        mel_filter = librosa.filters.mel(sample_rate, n_fft, mel_size, fmin=mel_min, fmax=mel_max)
-        self.register_buffer('mel_filter',
-                             torch.tensor(mel_filter, dtype=torch.float))
+        # amp2db function
+        self.amp2db = AmplitudeToDB()
 
     def forward(self, wav: torch.tensor, log_offset: float = 1e-6) -> torch.tensor:
-        mag, phase = self.stft.transform(wav)
-
         # apply mel filter
-        mel = torch.matmul(self.mel_filter, mag)
-
-        # clip
-        mel = mel.clamp(self.min_db, self.max_db)
+        mel = self.melfunc(wav)
 
         # to log-space
         mel = torch.log(mel + log_offset)
 
-        return mel
+        return mel.clamp(self.min_db, self.max_db)
 
 
 class MelMasker(nn.Module):
     """
-    # TODO: rename class
     Helper class transforming wave-level mask to spectrogram-level mask
     """
 
@@ -185,7 +131,7 @@ class MFCC(nn.Module):
                  mel_min: float = 0., mel_max: float = None):
         super().__init__()
         self.n_mfcc = n_mfcc
-        self.mel_func = MelSpectrogram(
+        self.mel_func = LogMelSpectrogram(
             sample_rate, mel_size, n_fft, win_length, hop_length, min_db, max_db,
             mel_min, mel_max
         )
@@ -197,35 +143,3 @@ class MFCC(nn.Module):
         assert len(wav.size()) == 3
         mel_spectrogram = self.mel_func(wav)
         return torch.matmul(self.mfcc_filter, mel_spectrogram)
-
-
-#
-# torchaudio jit computation version.
-#
-class MelSpectrogramJIT(nn.Module):
-    """
-    Wrapper class to adopt torchaudio's version
-    - https://github.com/pytorch/audio/blob/master/torchaudio/transforms.py
-    """
-
-    def __init__(self, sample_rate: int, mel_size: int, n_fft: int, win_length: int,
-                 hop_length: int, min_db: float, max_db: float,
-                 mel_min: float = 0., mel_max: float = None):
-        super().__init__()
-        if MelJit is None:
-            raise NotImplementedError('You should install torchaudio to use it!')
-
-        self.mel_func = MelJit(sr=sample_rate, n_fft=n_fft, ws=win_length, hop=hop_length, f_min=float(mel_min),
-                               f_max=float(mel_max), pad=win_length // 2, n_mels=mel_size, window=torch.hann_window,
-                               wkwargs=None)
-        self.min_db = min_db
-        self.max_db = max_db
-
-    def forward(self, wav: torch.tensor) -> torch.tensor:
-        # make mel
-        melspec = self.mel_func(wav).transpose(1, 2)
-
-        # clamp
-        melspec = melspec.clamp(self.min_db, self.max_db)
-
-        return torch.log(melspec)

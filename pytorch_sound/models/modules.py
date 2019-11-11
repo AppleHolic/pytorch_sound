@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import math
 from typing import Tuple
 
 
@@ -106,18 +107,31 @@ class PointwiseFeedForward(nn.Module):
         return self.act(x + input)
 
 
-class AttentionLayer(nn.Module):
+class PositionalEncoder(nn.Module):
     """
-    Concatenated Attention Modules
+    - reference : https://towardsdatascience.com/how-to-code-the-transformer-in-pytorch-24db27c8f9ec
     """
-
-    def __init__(self, hidden_dim: int, heads: int):
+    def __init__(self, dim: int, max_seq_len: int):
         super().__init__()
-        self.hidden_dim = hidden_dim
-        self.heads = heads
-        self.attention = MultiHeadAttention(hidden_dim, heads)
-        self.ff = PointwiseFeedForward(hidden_dim)
+        self.d_model = dim
 
-    def forward(self, input: torch.tensor) -> torch.tensor:
-        feature, att = self.attention(input)
-        return self.ff(feature), att
+        # create constant 'pe' matrix with values dependant on
+        # pos and i
+        pe = torch.zeros(max_seq_len, dim)
+        for pos in range(max_seq_len):
+            for i in range(0, dim, 2):
+                pe[pos, i] = \
+                    math.sin(pos / (10000 ** ((2 * i) / dim)))
+                pe[pos, i + 1] = \
+                    math.cos(pos / (10000 ** ((2 * (i + 1)) / dim)))
+
+        pe = pe.unsqueeze(0)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # make embeddings relatively larger
+        x = x * math.sqrt(self.d_model)
+        # add constant to embedding
+        seq_len = x.size(1)
+        x = x + self.pe[:, :seq_len]
+        return x
