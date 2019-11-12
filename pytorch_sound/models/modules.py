@@ -130,7 +130,7 @@ class PositionalEncoder(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # make embeddings relatively larger
-        x = x * math.sqrt(self.d_model)
+        x = x * math.sqrt(self.dim)
         # add constant to embedding
         seq_len = x.size(1)
         x = x + self.pe[:, :seq_len]
