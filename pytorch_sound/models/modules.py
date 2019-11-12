@@ -53,7 +53,7 @@ class MultiHeadAttention(nn.Module):
         if self.drop_out is not None:
             x = self.drop_out(x)
 
-        return input + x, att
+        return x, att
 
     @staticmethod
     def scale_dot_att(k: torch.tensor, v: torch.tensor, q: torch.tensor, att_mask: torch.tensor) -> torch.tensor:
@@ -113,7 +113,7 @@ class PositionalEncoder(nn.Module):
     """
     def __init__(self, dim: int, max_seq_len: int):
         super().__init__()
-        self.d_model = dim
+        self.dim = dim
 
         # create constant 'pe' matrix with values dependant on
         # pos and i
@@ -125,13 +125,13 @@ class PositionalEncoder(nn.Module):
                 pe[pos, i + 1] = \
                     math.cos(pos / (10000 ** ((2 * (i + 1)) / dim)))
 
-        pe = pe.unsqueeze(0)
+        pe = pe.transpose(0, 1).unsqueeze(0)
         self.register_buffer('pe', pe)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # make embeddings relatively larger
         x = x * math.sqrt(self.dim)
         # add constant to embedding
-        seq_len = x.size(1)
-        x = x + self.pe[:, :seq_len]
+        seq_len = x.size(-1)
+        x = x + self.pe[..., :seq_len]
         return x
