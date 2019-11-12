@@ -28,6 +28,8 @@ class MultiHeadAttention(nn.Module):
         else:
             self.drop_out = None
 
+        self.layernorm = nn.GroupNorm(1, self.hidden_dim)  # it is eq to layer norm
+
     def forward(self, input: torch.tensor, mask: torch.tensor = None) -> Tuple[torch.tensor, torch.tensor]:
         # linear and split k, v, q
         k, v, q = self.linear_kvq(input).chunk(3, 1)
@@ -52,6 +54,9 @@ class MultiHeadAttention(nn.Module):
         # dropout
         if self.drop_out is not None:
             x = self.drop_out(x)
+
+        # add & norm
+        x = self.layernorm(x + input)
 
         return x, att
 
@@ -91,6 +96,8 @@ class PointwiseFeedForward(nn.Module):
             nn.Conv1d(self.hidden_dim * 4, self.hidden_dim, 1),
         )
 
+        self.layernorm = nn.GroupNorm(1, self.hidden_dim)  # it is eq to layer norm
+
         self.act = nn.ReLU()
 
         # dropout layer
@@ -103,6 +110,9 @@ class PointwiseFeedForward(nn.Module):
         x = self.ff(input)
         if self.drop_out is not None:
             x = self.drop_out(x)
+
+        # add & norm
+        x = self.layernorm(x + input)
 
         return self.act(x + input)
 
