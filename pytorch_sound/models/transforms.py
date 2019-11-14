@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import librosa
 import numpy as np
 from torchaudio.functional import istft
-from torchaudio.transforms import AmplitudeToDB, MelSpectrogram
+from torchaudio.transforms import MelSpectrogram
 
 
 class STFT(nn.Module):
@@ -54,6 +55,53 @@ class STFT(nn.Module):
         )
 
 
+class Audio2Mel(nn.Module):
+    """
+    MelGAN's Log Mel Spectrogram Module
+    - refer: https://github.com/descriptinc/melgan-neurips/blob/master/mel2wav/modules.py
+    """
+    def __init__(
+        self,
+        n_fft: int = 1024,
+        hop_length: int = 256,
+        win_length: int = 1024,
+        sampling_rate: int = 22050,
+        n_mel_channels: int = 80,
+        mel_fmin: int = 0.0,
+        mel_fmax: int = None,
+    ):
+        super().__init__()
+        window = torch.hann_window(win_length).float()
+        mel_basis = librosa.filters.mel(
+            sampling_rate, n_fft, n_mel_channels, mel_fmin, mel_fmax
+        )
+        mel_basis = torch.from_numpy(mel_basis).float()
+        self.register_buffer("mel_basis", mel_basis)
+        self.register_buffer("window", window)
+        self.n_fft = n_fft
+        self.hop_length = hop_length
+        self.win_length = win_length
+        self.sampling_rate = sampling_rate
+        self.n_mel_channels = n_mel_channels
+
+    def forward(self, audio):
+        p = (self.n_fft - self.hop_length) // 2
+        audio = F.pad(audio, (p, p), "reflect").squeeze(1)
+        fft = torch.stft(
+            audio,
+            n_fft=self.n_fft,
+            hop_length=self.hop_length,
+            win_length=self.win_length,
+            window=self.window,
+            center=False,
+        )
+        real_part, imag_part = fft.unbind(-1)
+        magnitude = torch.sqrt(real_part ** 2 + imag_part ** 2)
+        mel_output = torch.matmul(self.mel_basis, magnitude)
+        log_mel_spec = torch.log10(torch.clamp(mel_output, min=1e-5))
+        return log_mel_spec
+
+
 class LogMelSpectrogram(nn.Module):
     """
     Mel spectrogram module with above STFT class
@@ -72,11 +120,8 @@ class LogMelSpectrogram(nn.Module):
                                       hop_length=hop_length, f_min=mel_min, f_max=mel_max, n_mels=mel_size,
                                       window_fn=torch.hann_window)
 
-        # amp2db function
-        self.amp2db = AmplitudeToDB()
-
     def forward(self, wav: torch.tensor, log_offset: float = 1e-6) -> torch.tensor:
-        # apply mel filter
+        # apply mel spectrogram
         mel = self.melfunc(wav)
 
         # to log-space
