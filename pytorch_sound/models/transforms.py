@@ -110,9 +110,9 @@ class LogMelSpectrogram(nn.Module):
                  mel_min: float = 0., mel_max: float = None):
         super().__init__()
         self.mel_size = mel_size
-        # deprecated arguments
-        self.min_db = min_db
-        self.max_db = max_db
+
+        self.min_db = np.log(np.power(10, min_db / 10))
+        self.max_db = np.log(np.power(10, max_db / 10))
 
         self.stft = STFT(filter_length=win_length, hop_length=hop_length)
 
@@ -130,7 +130,7 @@ class LogMelSpectrogram(nn.Module):
         # to log-space
         mel = torch.log(mel + log_offset)
 
-        return mel
+        return mel.clamp(self.min_db, self.max_db)
 
 
 class STFTTorchAudio(nn.Module):
