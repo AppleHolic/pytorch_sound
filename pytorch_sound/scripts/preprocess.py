@@ -15,6 +15,7 @@ from pytorch_sound import settings
 from pytorch_sound.data.meta.libri_tts import LibriTTSMeta
 from pytorch_sound.data.meta.ljspeech import LJSpeechMeta
 from pytorch_sound.data.meta.medleydb import MedleyDBMeta
+from pytorch_sound.data.meta.musdb18 import MUSDB18Meta
 from pytorch_sound.data.meta.vctk import VCTKMeta
 from pytorch_sound.data.meta.voice_bank import VoiceBankMeta
 from pytorch_sound.data.meta.dsd100 import DSD100Meta
@@ -42,6 +43,15 @@ def load_split_numpy(in_file: str, out_file: str, wav_len: int):
     # save wav array
     for idx in range(0, len(wav) - wav_len, wav_len):
         np.save(out_file.replace('.npy', '.{}.npy'.format(idx)), wav[idx: idx+wav_len])
+
+
+def resample(in_file: str, out_file: str, out_sr: int):
+    """
+    Resampling audio worker function with using ffmpeg.
+    Do rms normalization, change codec and sample rate
+    """
+    command = 'sox {} -ar {} {} rate'.format(in_file, out_sr, out_file)
+    os.system(command)
 
 
 def resample(in_file: str, out_file: str, out_sr: int):
@@ -388,6 +398,33 @@ class Processor:
 
         meta_dir = os.path.join(data_dir, 'meta')
         meta = DSD100Meta(meta_dir)
+        meta.make_meta(data_dir)
+
+    @staticmethod
+    def musdb18(data_dir: str, wav_subset_len: int = 44100 * 10):
+        print('Lookup files ...')
+        mixture_list = glob.glob(os.path.join(data_dir, '*', '*', 'mixture.wav'))
+        out_mixture_list = [file_path.replace('.wav', '.npy') for file_path in mixture_list]
+
+        # It only extract vocals. If you wanna use other source, override it.
+        vocals_list = glob.glob(os.path.join(data_dir, '*', '*', 'vocals.wav'))
+        out_vocals_list = [file_path.replace('.wav', '.npy') for file_path in vocals_list]
+
+        # save as numpy file
+        print('Save as numpy files..')
+        print('- Mixture File')
+        Parallel(n_jobs=__class__.num_workers)(
+            delayed(load_split_numpy)
+            (*args, wav_subset_len) for args in tqdm(zip(mixture_list, out_mixture_list))
+        )
+        print('- Vocals File')
+        Parallel(n_jobs=__class__.num_workers)(
+            delayed(load_split_numpy)
+            (*args, wav_subset_len) for args in tqdm(zip(vocals_list, out_vocals_list))
+        )
+
+        meta_dir = os.path.join(data_dir, 'meta')
+        meta = MUSDB18Meta(meta_dir)
         meta.make_meta(data_dir)
 
     @staticmethod
