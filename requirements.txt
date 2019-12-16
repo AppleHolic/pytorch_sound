@@ -11,3 +11,4 @@ pretty_midi
 ffmpeg_normalize
 tqdm
 pysndfx
+torchaudio

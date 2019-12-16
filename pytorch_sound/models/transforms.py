@@ -5,12 +5,9 @@ import librosa
 import numpy as np
 from scipy.signal import get_window
 from librosa.util import pad_center
+from torchaudio.functional import istft
+from torchaudio.transforms import MelSpectrogram
 from typing import Tuple
-
-try:
-    from torchaudio.transforms import MelSpectrogram as MelJit
-except ImportError:
-    MelJit = None
 
 
 class STFT(nn.Module):
@@ -103,7 +100,7 @@ class STFT(nn.Module):
         return inverse_transform[..., self.pad_amount:-self.pad_amount].squeeze(1)
 
 
-class MelSpectrogram(nn.Module):
+class LogMelSpectrogram(nn.Module):
     """
     Mel spectrogram module with above STFT class
     """
@@ -113,8 +110,9 @@ class MelSpectrogram(nn.Module):
                  mel_min: float = 0., mel_max: float = None):
         super().__init__()
         self.mel_size = mel_size
-        self.min_db = min_db
-        self.max_db = max_db
+
+        self.min_db = np.log(np.power(10, min_db / 10))
+        self.max_db = np.log(np.power(10, max_db / 10))
 
         self.stft = STFT(filter_length=win_length, hop_length=hop_length)
 
@@ -129,18 +127,137 @@ class MelSpectrogram(nn.Module):
         # apply mel filter
         mel = torch.matmul(self.mel_filter, mag)
 
-        # clip
-        mel = mel.clamp(self.min_db, self.max_db)
+        # to log-space
+        mel = torch.log(mel + log_offset)
+
+        return mel.clamp(self.min_db, self.max_db)
+
+
+class STFTTorchAudio(nn.Module):
+    """
+    Match interface between original one and pytorch official implementation
+    """
+
+    def __init__(self, filter_length: int = 1024, hop_length: int = 512, win_length: int = None,
+                 window: str = 'hann'):
+        super().__init__()
+        # original arguments
+        self.filter_length = filter_length
+        self.hop_length = hop_length
+        if win_length:
+            self.win_length = win_length
+        else:
+            self.win_length = self.filter_length
+        if window == 'hann':
+            self.register_buffer('window', torch.hann_window(self.win_length))
+        else:
+            raise NotImplemented(f'{window} is not implemented ! Use hann')
+
+        # pytorch official arguments
+        self.n_fft = self.win_length
+
+    def forward(self, wav: torch.Tensor) -> torch.Tensor:
+        stft = torch.stft(
+            wav, self.n_fft, self.hop_length, self.win_length, self.window, True,
+            'reflect', False, True
+        )  # (N, C, T, 2)
+        real_part, img_part = [x.squeeze(3) for x in stft.chunk(2, 3)]
+        return real_part, img_part
+
+    def transform(self, wav: torch.Tensor) -> torch.Tensor:
+        """
+        :param wav: wave tensor
+        :return: (N, Spec Dimension * 2, T) 3 dimensional stft tensor
+        """
+        real_part, img_part = self.forward(wav)
+        return torch.sqrt(real_part ** 2 + img_part ** 2), torch.atan2(img_part, real_part)
+
+    def inverse(self, magnitude: torch.Tensor, phase: torch.Tensor) -> torch.Tensor:
+        # match dimension
+        magnitude, phase = magnitude.unsqueeze(3), phase.unsqueeze(3)
+        stft = torch.cat([magnitude * torch.cos(phase), magnitude * torch.sin(phase)], dim=3)
+        return istft(
+            stft, self.n_fft, self.hop_length, self.win_length, self.window
+        )
+
+
+class Audio2Mel(nn.Module):
+    """
+    MelGAN's Log Mel Spectrogram Module
+    - refer: https://github.com/descriptinc/melgan-neurips/blob/master/mel2wav/modules.py
+    """
+    def __init__(
+        self,
+        n_fft: int = 1024,
+        hop_length: int = 256,
+        win_length: int = 1024,
+        sampling_rate: int = 22050,
+        n_mel_channels: int = 80,
+        mel_fmin: int = 0.0,
+        mel_fmax: int = None,
+    ):
+        super().__init__()
+        window = torch.hann_window(win_length).float()
+        mel_basis = librosa.filters.mel(
+            sampling_rate, n_fft, n_mel_channels, mel_fmin, mel_fmax
+        )
+        mel_basis = torch.from_numpy(mel_basis).float()
+        self.register_buffer("mel_basis", mel_basis)
+        self.register_buffer("window", window)
+        self.n_fft = n_fft
+        self.hop_length = hop_length
+        self.win_length = win_length
+        self.sampling_rate = sampling_rate
+        self.n_mel_channels = n_mel_channels
+
+    def forward(self, audio):
+        p = (self.n_fft - self.hop_length) // 2
+        audio = F.pad(audio, (p, p), "reflect").squeeze(1)
+        fft = torch.stft(
+            audio,
+            n_fft=self.n_fft,
+            hop_length=self.hop_length,
+            win_length=self.win_length,
+            window=self.window,
+            center=False,
+        )
+        real_part, imag_part = fft.unbind(-1)
+        magnitude = torch.sqrt(real_part ** 2 + imag_part ** 2)
+        mel_output = torch.matmul(self.mel_basis, magnitude)
+        log_mel_spec = torch.log10(torch.clamp(mel_output, min=1e-5))
+        return log_mel_spec
+
+
+class LogMelSpectrogramTorchAudio(nn.Module):
+    """
+    Mel spectrogram module with above STFT class
+    """
+
+    def __init__(self, sample_rate: int, mel_size: int, n_fft: int, win_length: int,
+                 hop_length: int, min_db: float, max_db: float,
+                 mel_min: float = 0., mel_max: float = None):
+        super().__init__()
+        self.mel_size = mel_size
+        # db to log
+        self.min_db = np.log(np.power(10, min_db / 10))
+        self.max_db = np.log(np.power(10, max_db / 10))
+
+        self.melfunc = MelSpectrogram(sample_rate=sample_rate, n_fft=n_fft, win_length=win_length,
+                                      hop_length=hop_length, f_min=mel_min, f_max=mel_max, n_mels=mel_size,
+                                      window_fn=torch.hann_window)
+
+    def forward(self, wav: torch.tensor, log_offset: float = 1e-6) -> torch.tensor:
+        # apply mel spectrogram
+        mel = self.melfunc(wav)
 
         # to log-space
         mel = torch.log(mel + log_offset)
 
-        return mel
+        return mel.clamp(self.min_db, self.max_db)
 
 
 class MelMasker(nn.Module):
     """
-    # TODO: rename class
     Helper class transforming wave-level mask to spectrogram-level mask
     """
 
@@ -185,7 +302,7 @@ class MFCC(nn.Module):
                  mel_min: float = 0., mel_max: float = None):
         super().__init__()
         self.n_mfcc = n_mfcc
-        self.mel_func = MelSpectrogram(
+        self.mel_func = LogMelSpectrogram(
             sample_rate, mel_size, n_fft, win_length, hop_length, min_db, max_db,
             mel_min, mel_max
         )
@@ -197,35 +314,3 @@ class MFCC(nn.Module):
         assert len(wav.size()) == 3
         mel_spectrogram = self.mel_func(wav)
         return torch.matmul(self.mfcc_filter, mel_spectrogram)
-
-
-#
-# torchaudio jit computation version.
-#
-class MelSpectrogramJIT(nn.Module):
-    """
-    Wrapper class to adopt torchaudio's version
-    - https://github.com/pytorch/audio/blob/master/torchaudio/transforms.py
-    """
-
-    def __init__(self, sample_rate: int, mel_size: int, n_fft: int, win_length: int,
-                 hop_length: int, min_db: float, max_db: float,
-                 mel_min: float = 0., mel_max: float = None):
-        super().__init__()
-        if MelJit is None:
-            raise NotImplementedError('You should install torchaudio to use it!')
-
-        self.mel_func = MelJit(sr=sample_rate, n_fft=n_fft, ws=win_length, hop=hop_length, f_min=float(mel_min),
-                               f_max=float(mel_max), pad=win_length // 2, n_mels=mel_size, window=torch.hann_window,
-                               wkwargs=None)
-        self.min_db = min_db
-        self.max_db = max_db
-
-    def forward(self, wav: torch.tensor) -> torch.tensor:
-        # make mel
-        melspec = self.mel_func(wav).transpose(1, 2)
-
-        # clamp
-        melspec = melspec.clamp(self.min_db, self.max_db)
-
-        return torch.log(melspec)

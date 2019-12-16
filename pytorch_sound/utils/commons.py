@@ -2,13 +2,12 @@ import logging
 import torch
 from tqdm import tqdm
 from joblib import Parallel, delayed, cpu_count
-from typing import Dict, Callable, List, Any
-
+from typing import Dict, Callable, List, Any, Tuple
 
 __all__ = ['LOGGER', 'go_multiprocess']
 
 
-def go_multiprocess(worker_func: Callable, inputs: List[Any], num_workers: int = None) -> List[Any]:
+def go_multiprocess(worker_func: Callable, inputs: List[Tuple[Any]], num_workers: int = None) -> List[Any]:
     """
     Run and return worker function using joblib.
     :param worker_func: callable worker function
