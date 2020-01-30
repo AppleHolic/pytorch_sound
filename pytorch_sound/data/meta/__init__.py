@@ -106,8 +106,7 @@ class MetaFrame:
         :param min_txt_rate: the ratio of the length of text divided by wave duration
         """
         # do txt process
-        results = go_multiprocess(preprocess_text, list(zip(txt_file_list,
-                                                            repeat(min_txt_rate, len(txt_file_list)), dur_list)))
+        results = go_multiprocess(preprocess_text, [(item,) for item in zip(txt_file_list, repeat(0, len(txt_file_list)), dur_list)])
         # split lists
         txt_list, pass_list = map(list, zip(*results))
         self._meta['pass'] = [p1 and p2 for p1, p2 in zip(self._meta['pass'], pass_list)]
