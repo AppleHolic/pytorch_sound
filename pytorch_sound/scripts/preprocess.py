@@ -146,7 +146,7 @@ class Processor:
     num_workers = cpu_count() // 2
 
     @staticmethod
-    def __copy_txt(in_dir: str, out_dir: str):
+    def copy_txt(in_dir: str, out_dir: str):
         """
         helper function to copy text files recursively
         :param in_dir: base directory of data files
@@ -215,7 +215,7 @@ class Processor:
 
         # do multi process
         Parallel(n_jobs=__class__.num_workers)(
-            delayed(read_and_write)
+            delayed(process_all)
             (*args, sample_rate) for args in tqdm(zip(in_wav_list, out_wav_list))
         )
 

@@ -263,15 +263,18 @@ class MelMasker(nn.Module):
 
     def __init__(self, win_length: int, hop_length: int):
         super().__init__()
+        self.win_length = win_length
         self.conv = nn.Conv1d(
-            1, 1, win_length, stride=hop_length, padding=win_length // 2, bias=False).cuda()
-        torch.nn.init.constant_(self.conv.weight, 1.)
+            1, 1, self.win_length, stride=hop_length, padding=0, bias=False).cuda()
+        torch.nn.init.constant_(self.conv.weight, 1. / self.win_length)
 
-    def forward(self, wav_mask: torch.tensor, mask_val: float = 0.0) -> torch.tensor:
+    def forward(self, wav_mask: torch.tensor) -> torch.tensor:
         # make mask
         with torch.no_grad():
+            wav_mask = F.pad(wav_mask, [0, self.win_length // 2], value=0.)
+            wav_mask = F.pad(wav_mask, [self.win_length // 2, 0], value=1.)
             mel_mask = self.conv(wav_mask.float().unsqueeze(1)).squeeze(1)
-            mel_mask = (mel_mask != mask_val).float()
+            mel_mask = torch.ceil(mel_mask)
         return mel_mask
 
 

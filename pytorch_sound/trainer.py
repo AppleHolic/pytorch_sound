@@ -346,14 +346,16 @@ class Trainer:
 
     def tensorboard_log(self, tag: str, meta: Dict[str, Any], step: int):
         for key, (value, log_type) in meta.items():
+            if log_type != LogType.SCALAR and type(value) == torch.Tensor:
+                value = to_numpy(value)
             if log_type == LogType.IMAGE:
-                self.writer.add_image('{}/{}'.format(tag, key), imshow_to_buf(to_numpy(value)), global_step=step)
+                self.writer.add_image('{}/{}'.format(tag, key), imshow_to_buf(value), global_step=step)
             elif log_type == LogType.AUDIO:
-                self.writer.add_audio('{}/{}'.format(tag, key), to_numpy(value), global_step=step, sample_rate=self.sr)
+                self.writer.add_audio('{}/{}'.format(tag, key), value, global_step=step, sample_rate=self.sr)
             elif log_type == LogType.SCALAR:
                 self.writer.add_scalar('{}/{}'.format(tag, key), value, global_step=step)
             elif log_type == LogType.PLOT:
-                self.writer.add_image('{}/{}'.format(tag, key), plot_to_buf(to_numpy(value)), global_step=step)
+                self.writer.add_image('{}/{}'.format(tag, key), plot_to_buf(value), global_step=step)
 
     @staticmethod
     def repeat(iterable):
