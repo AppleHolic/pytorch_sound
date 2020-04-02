@@ -288,7 +288,7 @@ class MelToMFCC(nn.Module):
         super().__init__()
         self.n_mfcc = n_mfcc
         dct_mat = audio_func.create_dct(n_mfcc, mel_size, norm)
-        self.register_buffer('dct_mat', dct_mat)
+        self.register_buffer('dct_mat', dct_mat.transpose(0, 1))
 
     def forward(self, mel_spec: torch.tensor) -> torch.tensor:
         assert len(mel_spec.size()) == 3
@@ -310,7 +310,7 @@ class MFCC(nn.Module):
             mel_min, mel_max
         )
         dct_mat = audio_func.create_dct(n_mfcc, mel_size, norm)
-        self.register_buffer('dct_mat', dct_mat)
+        self.register_buffer('dct_mat', dct_mat.transpose(0, 1))
 
     def forward(self, wav: torch.tensor) -> torch.tensor:
         assert len(wav.size()) == 3
