@@ -128,7 +128,7 @@ def graph2phone(graphs):
     return phones
 
 
-def phone2prono(phones, rule_in, rule_out):
+def phone2prono(phones, rule_in, rule_out, space_chr='#'):
     # Apply g2p rules
     for pattern, replacement in zip(rule_in, rule_out):
         # print pattern

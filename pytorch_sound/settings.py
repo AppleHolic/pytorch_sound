@@ -1,5 +1,6 @@
 import multiprocessing
-from pytorch_sound.data.eng_handler.symbols import symbols
+from pytorch_sound.data.eng_handler.symbols import symbols as eng_symbols
+from pytorch_sound.data.korean import SYMBOLS as kor_symbols
 from typing import List, Dict
 
 #
@@ -30,6 +31,12 @@ NUM_WORKERS: int = multiprocessing.cpu_count() // 2
 
 
 # english vocabulary
-IDX_TO_ENG: List[str] = symbols
+IDX_TO_ENG: List[str] = eng_symbols
 ENG_TO_IDX: Dict[str, int] = {x: i + 1 for i, x in enumerate(IDX_TO_ENG[1:])}
 ENG_VOCA_SIZE: int = len(IDX_TO_ENG)
+
+
+# korean vocabulary
+IDX_TO_KOR: List[str] = kor_symbols
+KOR_TO_IDX: Dict[str, int] = {x: i + 1 for i, x in enumerate(IDX_TO_KOR[1:])}
+KOR_VOCA_SIZE: int = len(IDX_TO_KOR)
