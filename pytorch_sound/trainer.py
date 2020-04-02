@@ -26,6 +26,7 @@ class LogType(enum.Enum):
     ENG: int = 3
     AUDIO: int = 4
     PLOT: int = 5
+    TEXT: int = 6
 
 
 class Trainer:
@@ -356,6 +357,8 @@ class Trainer:
                 self.writer.add_scalar('{}/{}'.format(tag, key), value, global_step=step)
             elif log_type == LogType.PLOT:
                 self.writer.add_image('{}/{}'.format(tag, key), plot_to_buf(value), global_step=step)
+            elif log_type == LogType.TEXT:
+                self.writer.add_text('{}/{}'.format(tag, key), value, global_step=step)
 
     @staticmethod
     def repeat(iterable):
