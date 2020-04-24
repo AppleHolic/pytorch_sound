@@ -1,3 +1,7 @@
+#
+# Reference Link : https://github.com/jiaaro/pydub/blob/master/pydub/silence.py
+# Source is fixed for adapting silence functions on numpy
+#
 import itertools
 import numpy as np
 
