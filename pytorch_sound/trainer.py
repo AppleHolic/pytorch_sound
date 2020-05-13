@@ -26,6 +26,7 @@ class LogType(enum.Enum):
     ENG: int = 3
     AUDIO: int = 4
     PLOT: int = 5
+    TEXT: int = 6
 
 
 class Trainer:
@@ -160,8 +161,6 @@ class Trainer:
                     log('------------- TRAIN step : %d -------------' % i)
 
                 # do training step
-                if self.scheduler is not None:
-                    self.scheduler.step(i)
                 self.model.train()
                 self.train(i)
 
@@ -208,6 +207,9 @@ class Trainer:
         self.clip_grad()
         self.optimizer.step()
 
+        if self.scheduler is not None:
+            self.scheduler.step()
+
         # logging
         if log_flag:
             # console logging
@@ -221,10 +223,12 @@ class Trainer:
         stat = defaultdict(float)
 
         for i in range(self.valid_max_step):
+            # flag for logging
+            log_flag = i % self.log_interval == 0 or i == self.valid_max_step - 1
 
             # forward model
             with torch.no_grad():
-                batch_loss, meta = self.forward(*to_device(next(self.valid_dataset)), is_logging=True)
+                batch_loss, meta = self.forward(*to_device(next(self.valid_dataset)), is_logging=log_flag)
                 loss += batch_loss
 
             # update stat
@@ -240,6 +244,7 @@ class Trainer:
             key: (value, log_type) for key, (value, log_type) in meta.items()
             if not log_type == LogType.SCALAR
         }
+
         self.tensorboard_log('valid', meta_non_scalar, step)
 
         # averaging stat
@@ -356,6 +361,8 @@ class Trainer:
                 self.writer.add_scalar('{}/{}'.format(tag, key), value, global_step=step)
             elif log_type == LogType.PLOT:
                 self.writer.add_image('{}/{}'.format(tag, key), plot_to_buf(value), global_step=step)
+            elif log_type == LogType.TEXT:
+                self.writer.add_text('{}/{}'.format(tag, key), value, global_step=step)
 
     @staticmethod
     def repeat(iterable):

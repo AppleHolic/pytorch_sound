@@ -50,3 +50,42 @@ def pad_eng_eos(x: np.array) -> np.array:
     :return: padded array
     """
     return np.array(list(x) + [settings.ENG_VOCA_SIZE])
+
+
+def eng_c2i(sentence: str) -> List[int]:
+    """
+    Make indices from english to its
+    :param sentence: english sentence
+    :return: indices of english characters
+    """
+    # eng to index
+    return [settings.ENG_TO_IDX[c] for c in sentence if c in settings.ENG_TO_IDX]
+
+
+def kor_p2i(phonemes: str) -> List[int]:
+    """
+    Make indices from korean to its
+    :param sentence: korean phonemes
+    :return: indices of korean characters
+    """
+    # eng to index
+    return [settings.KOR_TO_IDX[p] for p in phonemes.split() if p in settings.KOR_TO_IDX]
+
+
+def kor_i2p(idx: List[int]) -> List[str]:
+    """
+    Make korean phonemes from indices
+    :param idx: indices
+    :return: korean characters
+    """
+    # index to eng
+    return [settings.IDX_TO_KOR[i] for i in idx]
+
+
+def pad_kor_eos(x: np.array) -> np.array:
+    """
+    Pad to end of the given indices array.
+    :param x: indices array
+    :return: padded array
+    """
+    return np.array(list(x) + [settings.KOR_VOCA_SIZE])

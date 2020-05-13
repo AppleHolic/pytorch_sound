@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchaudio import functional as audio_func
 import librosa
 import numpy as np
 from scipy.signal import get_window
@@ -126,6 +127,30 @@ class LogMelSpectrogram(nn.Module):
 
         # apply mel filter
         mel = torch.matmul(self.mel_filter, mag)
+
+        # to log-space
+        mel = torch.log(mel + log_offset)
+
+        return mel.clamp(self.min_db, self.max_db)
+
+
+class LogMelScale(nn.Module):
+
+    def __init__(self, sample_rate: int, mel_size: int, n_fft: int, min_db: float, max_db: float,
+                 mel_min: float = 0., mel_max: float = None):
+        super().__init__()
+        self.mel_size = mel_size
+
+        self.min_db = np.log(np.power(10, min_db / 10))
+        self.max_db = np.log(np.power(10, max_db / 10))
+        # mel filter banks
+        mel_filter = librosa.filters.mel(sample_rate, n_fft, mel_size, fmin=mel_min, fmax=mel_max)
+        self.register_buffer('mel_filter',
+                             torch.tensor(mel_filter, dtype=torch.float))
+
+    def forward(self, magnitude: torch.tensor, log_offset: float = 1e-6) -> torch.tensor:
+        # apply mel filter
+        mel = torch.matmul(self.mel_filter, magnitude)
 
         # to log-space
         mel = torch.log(mel + log_offset)
@@ -283,16 +308,15 @@ class MelToMFCC(nn.Module):
     Create the Mel-frequency cepstrum coefficients from mel-spectrogram
     """
 
-    def __init__(self, n_mfcc: int, mel_size: int):
+    def __init__(self, n_mfcc: int, mel_size: int, norm: str = 'ortho'):
         super().__init__()
         self.n_mfcc = n_mfcc
-        # register mfcc dct filter
-        self.register_buffer('mfcc_filter',
-                             torch.FloatTensor(librosa.filters.dct(self.n_mfcc, mel_size)).unsqueeze(0))
+        dct_mat = audio_func.create_dct(n_mfcc, mel_size, norm)
+        self.register_buffer('dct_mat', dct_mat.transpose(0, 1))
 
     def forward(self, mel_spec: torch.tensor) -> torch.tensor:
         assert len(mel_spec.size()) == 3
-        return torch.matmul(self.mfcc_filter, mel_spec)
+        return torch.matmul(self.dct_mat, mel_spec)
 
 
 class MFCC(nn.Module):
@@ -302,18 +326,17 @@ class MFCC(nn.Module):
 
     def __init__(self, sample_rate: int, mel_size: int, n_fft: int, win_length: int, n_mfcc: int,
                  hop_length: int, min_db: float, max_db: float,
-                 mel_min: float = 0., mel_max: float = None):
+                 mel_min: float = 0., mel_max: float = None, norm: str = 'ortho'):
         super().__init__()
         self.n_mfcc = n_mfcc
         self.mel_func = LogMelSpectrogram(
             sample_rate, mel_size, n_fft, win_length, hop_length, min_db, max_db,
             mel_min, mel_max
         )
-        # register mfcc dct filter
-        self.register_buffer('mfcc_filter',
-                             torch.FloatTensor(librosa.filters.dct(self.n_mfcc, mel_size)).unsqueeze(0))
+        dct_mat = audio_func.create_dct(n_mfcc, mel_size, norm)
+        self.register_buffer('dct_mat', dct_mat.transpose(0, 1))
 
     def forward(self, wav: torch.tensor) -> torch.tensor:
         assert len(wav.size()) == 3
         mel_spectrogram = self.mel_func(wav)
-        return torch.matmul(self.mfcc_filter, mel_spectrogram)
+        return torch.matmul(self.dct_mat, mel_spectrogram)

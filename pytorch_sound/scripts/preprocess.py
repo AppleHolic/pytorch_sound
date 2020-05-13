@@ -19,6 +19,7 @@ from pytorch_sound.data.meta.musdb18 import MUSDB18Meta
 from pytorch_sound.data.meta.vctk import VCTKMeta
 from pytorch_sound.data.meta.voice_bank import VoiceBankMeta
 from pytorch_sound.data.meta.dsd100 import DSD100Meta
+from pytorch_sound.data.meta.zeroth_korean import ZerothKoreanMeta
 from pytorch_sound.scripts.libri_tts.fetch import fetch_structure
 
 
@@ -27,6 +28,8 @@ def process_all(in_file: str, out_file: str, out_sr: int):
     Audio processing worker function with using ffmpeg.
     Do rms normalization, change codec and sample rate
     """
+    if os.path.exists(out_file):
+        return
     norm = FFmpegNormalize(normalization_type='rms', audio_codec='pcm_f32le', sample_rate=out_sr)
     norm.add_media_file(in_file, out_file)
     norm.run_normalization()
@@ -525,6 +528,34 @@ class Processor:
 
         new_train_df.to_json(train_file)
         new_valid_df.to_json(valid_file)
+
+    @staticmethod
+    def zeroth_korean(in_dir: str, out_dir: str, sample_rate: int = 22050):
+        # parse texts
+        text_list = glob.glob(os.path.join(in_dir, 'train_data_01', '*', '*', '*.txt'))
+
+        # audio list (pattern : {spk}_{version}_{sentence}.flac
+        audio_list = glob.glob(os.path.join(in_dir, 'train_data_01', '*', '*', '*.flac'))
+
+        # make directory
+        os.makedirs(os.path.join(out_dir, 'wavs'), exist_ok=True)
+
+        # make output file list
+        out_dir = os.path.abspath(out_dir)
+        out_wav_list = [os.path.join(out_dir, 'wavs', os.path.basename(audio_path).replace('.flac', '.wav')) for audio_path in audio_list]
+
+        # preprocess audio files
+        print('Start Audio Processing ...')
+        Parallel(n_jobs=__class__.num_workers)(
+            delayed(process_all)
+            (*args, sample_rate) for args in tqdm(zip(audio_list, out_wav_list))
+        )
+
+        print('Finish')
+        # make meta files
+        meta_dir = os.path.join(out_dir, 'meta')
+        meta = ZerothKoreanMeta(meta_dir)
+        meta.make_meta(out_wav_list, text_list)
 
 
 if __name__ == '__main__':
