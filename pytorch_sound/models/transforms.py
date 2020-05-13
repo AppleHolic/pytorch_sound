@@ -134,6 +134,30 @@ class LogMelSpectrogram(nn.Module):
         return mel.clamp(self.min_db, self.max_db)
 
 
+class LogMelScale(nn.Module):
+
+    def __init__(self, sample_rate: int, mel_size: int, n_fft: int, min_db: float, max_db: float,
+                 mel_min: float = 0., mel_max: float = None):
+        super().__init__()
+        self.mel_size = mel_size
+
+        self.min_db = np.log(np.power(10, min_db / 10))
+        self.max_db = np.log(np.power(10, max_db / 10))
+        # mel filter banks
+        mel_filter = librosa.filters.mel(sample_rate, n_fft, mel_size, fmin=mel_min, fmax=mel_max)
+        self.register_buffer('mel_filter',
+                             torch.tensor(mel_filter, dtype=torch.float))
+
+    def forward(self, magnitude: torch.tensor, log_offset: float = 1e-6) -> torch.tensor:
+        # apply mel filter
+        mel = torch.matmul(self.mel_filter, magnitude)
+
+        # to log-space
+        mel = torch.log(mel + log_offset)
+
+        return mel.clamp(self.min_db, self.max_db)
+
+
 class STFTTorchAudio(nn.Module):
     """
     Match interface between original one and pytorch official implementation
