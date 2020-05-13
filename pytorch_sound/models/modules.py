@@ -114,34 +114,33 @@ class PointwiseFeedForward(nn.Module):
         # add & norm
         x = self.layernorm(x + input)
 
-        return self.act(x + input)
+        return self.act(x)
 
 
-class PositionalEncoder(nn.Module):
-    """
-    - reference : https://towardsdatascience.com/how-to-code-the-transformer-in-pytorch-24db27c8f9ec
-    """
+class PositionalEncoding(nn.Module):
+
     def __init__(self, dim: int, max_seq_len: int):
         super().__init__()
         self.dim = dim
+        pe = self.get_embedding(max_seq_len, dim)
 
-        # create constant 'pe' matrix with values dependant on
-        # pos and i
-        pe = torch.zeros(max_seq_len, dim)
-        for pos in range(max_seq_len):
-            for i in range(0, dim, 2):
-                pe[pos, i] = \
-                    math.sin(pos / (10000 ** ((2 * i) / dim)))
-                pe[pos, i + 1] = \
-                    math.cos(pos / (10000 ** ((2 * (i + 1)) / dim)))
-
-        pe = pe.transpose(0, 1).unsqueeze(0)
+        # make pe
+        pe = pe.T.unsqueeze(0)
         self.register_buffer('pe', pe)
+
+    @staticmethod
+    def get_embedding(num_embeddings: int, embedding_dim: int) -> torch.Tensor:
+        sint = (10000 ** (2 * (torch.arange(embedding_dim, dtype=torch.float32) // 2) / embedding_dim)).unsqueeze(0)
+        sint = torch.arange(num_embeddings, dtype=torch.float32).unsqueeze(1).repeat(1, embedding_dim) / sint
+        sint[:, 0::2] = torch.sin(sint[:, 0::2])
+        sint[:, 1::2] = torch.cos(sint[:, 1::2])
+        return sint
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # make embeddings relatively larger
-        x = x * math.sqrt(self.dim)
+        x = x * (self.dim ** 0.5)
         # add constant to embedding
         seq_len = x.size(-1)
+        # pe : (1, C, T)
         x = x + self.pe[..., :seq_len]
         return x
