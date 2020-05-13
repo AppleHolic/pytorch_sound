@@ -141,12 +141,11 @@ class BucketRandomBatchSampler(Sampler):
         if self.n_buckets <= 0:
             raise ValueError("the num of buckets has to be a positive value.")
 
-        self.buckets = [list(range(i * self.bucket_size, (i + 1) * self.bucket_size))
-                        for i in range(self.n_buckets - int(skip_last_bucket))]
+        self.skip_last_bucket = skip_last_bucket
 
     def __iter__(self):
         # copy buckets and shuffle indices
-        buckets = copy.deepcopy(self.buckets)
+        buckets = self.buckets
         for idx in range(len(buckets)):
             np.random.shuffle(buckets[idx])
 
@@ -158,6 +157,11 @@ class BucketRandomBatchSampler(Sampler):
             if not buckets[bucket_id]:
                 buckets.pop(bucket_id)
             yield ids
+
+    @property
+    def buckets(self):
+        return [list(range(i * self.bucket_size, (i + 1) * self.bucket_size))
+                for i in range(self.n_buckets - int(self.skip_last_bucket))]
 
     def __len__(self):
         return self.bucket_size * self.n_buckets // self.batch_size
