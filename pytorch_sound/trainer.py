@@ -161,8 +161,6 @@ class Trainer:
                     log('------------- TRAIN step : %d -------------' % i)
 
                 # do training step
-                if self.scheduler is not None:
-                    self.scheduler.step(i)
                 self.model.train()
                 self.train(i)
 
@@ -209,6 +207,9 @@ class Trainer:
         self.clip_grad()
         self.optimizer.step()
 
+        if self.scheduler is not None:
+            self.scheduler.step()
+
         # logging
         if log_flag:
             # console logging
@@ -222,10 +223,12 @@ class Trainer:
         stat = defaultdict(float)
 
         for i in range(self.valid_max_step):
+            # flag for logging
+            log_flag = i % self.log_interval == 0 or i == self.valid_max_step - 1
 
             # forward model
             with torch.no_grad():
-                batch_loss, meta = self.forward(*to_device(next(self.valid_dataset)), is_logging=True)
+                batch_loss, meta = self.forward(*to_device(next(self.valid_dataset)), is_logging=log_flag)
                 loss += batch_loss
 
             # update stat
@@ -241,6 +244,7 @@ class Trainer:
             key: (value, log_type) for key, (value, log_type) in meta.items()
             if not log_type == LogType.SCALAR
         }
+
         self.tensorboard_log('valid', meta_non_scalar, step)
 
         # averaging stat

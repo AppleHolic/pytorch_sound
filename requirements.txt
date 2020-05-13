@@ -1,5 +1,5 @@
-numpy == 1.15.3
-librosa == 0.7.0
+numpy
+librosa
 soundfile
 torch
 tensorboardX
@@ -11,4 +11,7 @@ pretty_midi
 ffmpeg_normalize
 tqdm
 pysndfx
+pyworld
 torchaudio
+matplotlib
+Pillow
