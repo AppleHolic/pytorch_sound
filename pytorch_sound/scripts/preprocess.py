@@ -57,15 +57,6 @@ def resample(in_file: str, out_file: str, out_sr: int):
     os.system(command)
 
 
-def resample(in_file: str, out_file: str, out_sr: int):
-    """
-    Resampling audio worker function with using ffmpeg.
-    Do rms normalization, change codec and sample rate
-    """
-    command = 'sox {} -ar {} {} rate'.format(in_file, out_sr, out_file)
-    os.system(command)
-
-
 def load_and_numpy_audio(in_file: str, out_file: str):
     """
     When audio files are very big, it brings more file loading time.
@@ -187,10 +178,7 @@ class Processor:
 
         # loop up wave files
         print('Lookup file list...')
-        in_wav_list = glob.glob(os.path.join(in_dir, '*.wav'))
-        in_wav_list += glob.glob(os.path.join(in_dir, '**', '*.wav'))
-        in_wav_list += glob.glob(os.path.join(in_dir, '**', '**', '*.wav'))
-        in_wav_list += glob.glob(os.path.join(in_dir, '**', '**', '**', '*.wav'))
+        in_wav_list = glob.glob(os.path.join(in_dir, '**', '*.wav'), recursive=True)
 
         # parse directories
         dirs = list(map(lambda x: get_sub_dir(in_dir, x), in_wav_list))
