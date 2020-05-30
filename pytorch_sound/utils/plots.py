@@ -35,7 +35,7 @@ def imshow_to_buf(x: np.ndarray) -> np.ndarray:
     if len(x.shape) == 3:
         x = x[0]
     fig, ax = plt.subplots()
-    ax.imshow(x, cmap='magma', aspect='auto')
+    ax.imshow(x, aspect='auto')
     fig.canvas.draw()
     im = np.array(fig.canvas.renderer._renderer)
     plt.clf()

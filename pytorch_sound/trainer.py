@@ -114,8 +114,8 @@ class Trainer:
         # make dirs
         self.log_dir = os.path.join(save_dir, 'logs', self.save_prefix)
         self.model_dir = os.path.join(save_dir, 'models')
-        os.makedirs(self.log_dir, exist_ok=True)
         os.makedirs(self.model_dir, exist_ok=True)
+        os.makedirs(self.log_dir, exist_ok=True)
 
         self.writer = SummaryWriter(log_dir=self.log_dir, flush_secs=10)
 
@@ -214,8 +214,11 @@ class Trainer:
         if log_flag:
             # console logging
             self.console_log('train', meta, step)
-            # tensorboard logging
-            self.tensorboard_log('train', meta, step)
+            try:
+                # tensorboard logging
+                self.tensorboard_log('train', meta, step)
+            except OverflowError:
+                pass
 
     def validate(self, step: int):
 
@@ -245,7 +248,10 @@ class Trainer:
             if not log_type == LogType.SCALAR
         }
 
-        self.tensorboard_log('valid', meta_non_scalar, step)
+        try:
+            self.tensorboard_log('valid', meta_non_scalar, step)
+        except OverflowError:
+            pass
 
         # averaging stat
         loss /= self.valid_max_step
