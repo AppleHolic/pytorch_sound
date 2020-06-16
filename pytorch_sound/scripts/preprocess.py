@@ -289,7 +289,7 @@ class Processor:
         """
         # lookup files
         print('lookup files...')
-        wave_file_list = glob.glob(os.path.join(in_dir, 'wavs', '*', '*.wav'))
+        wave_file_list = glob.glob(os.path.join(in_dir, '*', '*', '*.wav'))
         txt_file_list = glob.glob(os.path.join(in_dir, 'txt', '*', '*.txt'))
 
         # make output file path list
