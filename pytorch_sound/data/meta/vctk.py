@@ -78,18 +78,13 @@ class VCTKMeta(MetaFrame):
                 infos['audio_filename'][key] = wav_file_path
                 infos['text'][key] = txt_match_dict[key]
 
-        # to numeric index
-        map_spk = {spk: idx for idx, spk in enumerate(list(set(infos['speaker'].values())))}
-
-        infos['speaker'] = {key: map_spk[val] for key, val in infos['speaker'].items()}
-
         print('Matching is completed ...')
 
         # change meta obj
         self._meta = pd.DataFrame(infos)
 
         # make speaker as indices
-        speaker_mappings = {spk: idx for idx, spk in enumerate(sorted(self._meta['speaker'].values))}
+        speaker_mappings = {spk: idx for idx, spk in enumerate(sorted(list(set(self._meta['speaker'].values))))}
         # update infos
         self._meta['speaker'] = [speaker_mappings[spk] for spk in self._meta['speaker'].values]
         self._meta['pass'] = [True] * len(self._meta)
