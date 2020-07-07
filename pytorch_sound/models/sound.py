@@ -104,6 +104,11 @@ class InversePreEmphasis(torch.nn.Module):
 # Build Multi STFT Loss
 #
 def build_stft_functions(*params: Tuple[int, int, int]):
+    """
+    Make stft modules by given parameters
+    :param params: arguments of tuples (n_fft, window size, hop size)
+    :return: STFT modules
+    """
     print('Build Mel Functions ...')
     return [
         STFT(
@@ -115,6 +120,14 @@ def build_stft_functions(*params: Tuple[int, int, int]):
 def multi_stft_loss(
     pred: torch.Tensor, target: torch.Tensor, stft_params: List[Tuple[int, int, int]], eps: float = 1e-5
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Calculate Multi resolution STFT Loss
+    :param pred: Predicted tensor  (N, C, T)
+    :param target: Target tensor   (N, C, T)
+    :param stft_params: STFT Params (List of tuples (n_fft, window size, hop size))
+    :param eps: eps for calculating log function
+    :return: Tuple (Multi STFT Loss (sum of other two losses), Spectral Convergence Loss, Magnitute Loss)
+    """
     loss, sc_loss, mag_loss = 0., 0., 0.
 
     stft_funcs_for_loss = build_stft_functions(*stft_params)
