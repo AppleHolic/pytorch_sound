@@ -122,8 +122,8 @@ def multi_stft_loss(
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Calculate Multi resolution STFT Loss
-    :param pred: Predicted tensor  (N, C, T)
-    :param target: Target tensor   (N, C, T)
+    :param pred: Predicted tensor  (N, T)
+    :param target: Target tensor   (N, T)
     :param stft_params: STFT Params (List of tuples (n_fft, window size, hop size))
     :param eps: eps for calculating log function
     :return: Tuple (Multi STFT Loss (sum of other two losses), Spectral Convergence Loss, Magnitute Loss)
@@ -133,7 +133,7 @@ def multi_stft_loss(
     stft_funcs_for_loss = build_stft_functions(*stft_params)
 
     for stft_idx, stft_func in enumerate(stft_funcs_for_loss):
-        p_stft = stft_func.transform(pred.squeeze(1))[0]
+        p_stft = stft_func.transform(pred)[0]
         t_stft = stft_func.transform(target)[0]
 
         N = t_stft.size(1) * t_stft.size(2)
