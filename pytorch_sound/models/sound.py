@@ -1,5 +1,7 @@
 import torch
 import torch.nn.functional as F
+from pytorch_sound.models.transforms import STFTTorchAudio as STFT
+from typing import Tuple, List
 
 
 class VolNormConv:
@@ -96,3 +98,50 @@ class InversePreEmphasis(torch.nn.Module):
     def forward(self, input: torch.tensor) -> torch.tensor:
         x, _ = self.rnn(input.transpose(1, 2))
         return x.transpose(1, 2)
+
+
+#
+# Build Multi STFT Loss
+#
+def build_stft_functions(*params: Tuple[int, int, int]):
+    """
+    Make stft modules by given parameters
+    :param params: arguments of tuples (n_fft, window size, hop size)
+    :return: STFT modules
+    """
+    print('Build Mel Functions ...')
+    return [
+        STFT(
+            win, hop, win, fft
+        ).cuda() for fft, win, hop in params
+    ]
+
+
+def multi_stft_loss(
+    pred: torch.Tensor, target: torch.Tensor, stft_params: List[Tuple[int, int, int]], eps: float = 1e-5
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Calculate Multi resolution STFT Loss
+    :param pred: Predicted tensor  (N, T)
+    :param target: Target tensor   (N, T)
+    :param stft_params: STFT Params (List of tuples (n_fft, window size, hop size))
+    :param eps: eps for calculating log function
+    :return: Tuple (Multi STFT Loss (sum of other two losses), Spectral Convergence Loss, Magnitute Loss)
+    """
+    loss, sc_loss, mag_loss = 0., 0., 0.
+
+    stft_funcs_for_loss = build_stft_functions(*stft_params)
+
+    for stft_idx, stft_func in enumerate(stft_funcs_for_loss):
+        p_stft = stft_func.transform(pred)[0]
+        t_stft = stft_func.transform(target)[0]
+
+        N = t_stft.size(1) * t_stft.size(2)
+        sc_loss_ = ((t_stft - p_stft).norm(dim=(1, 2)) / t_stft.norm(dim=(1, 2))).mean()
+        mag_loss_ = torch.norm(torch.log(t_stft + eps) - torch.log(p_stft + eps), p=1, dim=(1, 2)).mean() / N
+
+        loss += sc_loss_ + mag_loss_
+        sc_loss += sc_loss_
+        mag_loss += mag_loss_
+
+    return loss / len(stft_funcs_for_loss), sc_loss / len(stft_funcs_for_loss), mag_loss / len(stft_funcs_for_loss)
