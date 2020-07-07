@@ -32,6 +32,7 @@ class MetaFrame:
 
     # TODO: Add simple examples to use it
     """
+    frame_file_names: List[str] = ['all_meta.json', 'train_meta.json', 'val_meta.json']
 
     @property
     def process_columns(self) -> List[str]:

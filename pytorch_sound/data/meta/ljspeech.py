@@ -13,7 +13,6 @@ class LJSpeechMeta(MetaFrame):
     Extended MetaFrame for LJSpeech Dataset
     - dataset : https://keithito.com/LJ-Speech-Dataset/
     """
-    frame_file_names: List[str] = ['all_meta.json', 'train_meta.json', 'val_meta.json']
 
     def __init__(self, meta_path: str = '', sr: int = 22050):
         self.meta_path = meta_path

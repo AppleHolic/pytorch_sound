@@ -9,6 +9,9 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Tuple, List
 from ffmpeg_normalize import FFmpegNormalize
+from pytorch_sound.data.meta import MetaFrame
+
+from pytorch_sound.data.meta.commons import split_train_val_frame
 from tqdm import tqdm
 from joblib import Parallel, delayed, cpu_count
 from pytorch_sound import settings
@@ -545,6 +548,41 @@ class Processor:
         meta = ZerothKoreanMeta(meta_dir)
         meta.make_meta(out_wav_list, text_list)
 
+    @staticmethod
+    def merge_two_speech_datasets(all_meta_1: str, all_meta_2: str, out_meta_dir: str):
+        # mkdir
+        os.makedirs(out_meta_dir, exist_ok=True)
+
+        # load data frames
+        df1 = pd.read_json(all_meta_1)
+        df2 = pd.read_json(all_meta_2)
+
+        assert 'speaker' in df1 and 'speaker' in df2, 'Speaker column must be in data frames'
+
+        # get speaker id on df1
+        last_spk_id = sorted(list(set(df1['speaker'].values)))[-1]
+
+        # add speaker id on df2
+        df2['speaker'] = df2['speaker'].values + last_spk_id + 1
+
+        # merge two data frames
+        default_columns = ['audio_filename', 'text', 'speaker', 'duration']
+        info = {col: {} for col in default_columns}
+
+        # update data
+        for col in default_columns:
+            for df in [df1, df2]:
+                for idx, val in zip(df.index, df[col].values):
+                    info[col][idx] = val
+
+        # make data frame
+        all_meta = pd.DataFrame(info)
+
+        # split train/valid
+        train_meta, val_meta = split_train_val_frame(all_meta, val_rate=0.05)
+
+        # save
+        MetaFrame.save_meta(MetaFrame.frame_file_names, out_meta_dir, all_meta, train_meta, val_meta)
 
 if __name__ == '__main__':
     fire.Fire(Processor)

@@ -12,7 +12,6 @@ class DSD100Meta(MetaFrame):
     Extended MetaFrame for using DSD100
     - dataset : https://sigsep.github.io/datasets/dsd100.html
     """
-    frame_file_names: List[str] = ['all_meta.json', 'train_meta.json', 'val_meta.json']
 
     def __init__(self, meta_path: str = '', sr: int = 44100):
         self.meta_path = meta_path

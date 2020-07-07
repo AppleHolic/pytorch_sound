@@ -16,7 +16,6 @@ class LibriTTSMeta(MetaFrame):
     - dataset : http://www.openslr.org/60/
     - arxiv : https://arxiv.org/abs/1904.02882
     """
-    frame_file_names: List[str] = ['all_meta.json', 'train_meta.json', 'val_meta.json']
 
     def __init__(self, meta_path: str = '', sr: int = 22050):
         self.meta_path = meta_path

@@ -14,7 +14,6 @@ class ZerothKoreanMeta(MetaFrame):
     Extended MetaFrame for zeroth korean
     - dataset : http://openslr.org/40
     """
-    frame_file_names: List[str] = ['all_meta.json', 'train_meta.json', 'val_meta.json']
 
     def __init__(self, meta_path: str = '', sr: int = 22050):
         self.meta_path = meta_path

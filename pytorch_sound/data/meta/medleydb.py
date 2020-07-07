@@ -22,7 +22,6 @@ class MedleyDBMeta(MetaFrame):
     MedleyDB is the dataset has both seperated sound sources and mixture of them.
     Referece Link : https://github.com/marl/medleydb
     """
-    frame_file_names: List[str] = ['all_meta.json', 'train_meta.json', 'val_meta.json']
 
     def __init__(self, meta_path: str = '', sr: int = 44100):
         self.meta_path = meta_path

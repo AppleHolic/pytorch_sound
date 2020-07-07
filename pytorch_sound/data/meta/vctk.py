@@ -16,7 +16,6 @@ class VCTKMeta(MetaFrame):
     Extended MetaFrame for using VCTK
     - dataset : https://datashare.is.ed.ac.uk/handle/10283/2651
     """
-    frame_file_names: List[str] = ['all_meta.json', 'train_meta.json', 'val_meta.json']
 
     def __init__(self, meta_path: str = '', sr: int = 22050):
         self.meta_path = meta_path
