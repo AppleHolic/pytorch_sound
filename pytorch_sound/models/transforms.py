@@ -46,7 +46,7 @@ class STFT(nn.Module):
         forward_basis = torch.FloatTensor(fourier_basis[:, np.newaxis, :]) * fft_window
         inverse_basis = torch.FloatTensor(
             np.linalg.pinv(self.filter_length / self.hop_length * fourier_basis).T[:, np.newaxis, :]
-        )
+        ) * fft_window
 
         self.register_buffer('square_window', fft_window ** 2)
         self.register_buffer('forward_basis', forward_basis)
