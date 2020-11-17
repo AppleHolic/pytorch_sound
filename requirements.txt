@@ -1,7 +1,8 @@
 numpy
-librosa
+torch==1.7.0
+torchaudio==0.7.0
+librosa==0.8.0
 soundfile
-torch
 tensorboardX
 fire
 inflect==0.2.5
@@ -12,6 +13,5 @@ ffmpeg_normalize
 tqdm
 pysndfx
 pyworld
-torchaudio
 matplotlib
 Pillow

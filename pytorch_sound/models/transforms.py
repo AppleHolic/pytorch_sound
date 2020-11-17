@@ -6,7 +6,6 @@ import librosa
 import numpy as np
 from scipy.signal import get_window, kaiser
 from librosa.util import pad_center
-from torchaudio.functional import istft
 from torchaudio.transforms import MelSpectrogram
 from typing import Tuple
 
@@ -204,7 +203,7 @@ class STFTTorchAudio(nn.Module):
         # match dimension
         magnitude, phase = magnitude.unsqueeze(3), phase.unsqueeze(3)
         stft = torch.cat([magnitude * torch.cos(phase), magnitude * torch.sin(phase)], dim=3)
-        return istft(
+        return torch.istft(
             stft, self.n_fft, self.hop_length, self.win_length, self.window
         )
 
