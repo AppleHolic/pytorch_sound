@@ -6,7 +6,6 @@ import librosa
 import numpy as np
 from scipy.signal import get_window, kaiser
 from librosa.util import pad_center
-from torchaudio.functional import istft
 from torchaudio.transforms import MelSpectrogram
 from typing import Tuple
 
@@ -73,7 +72,6 @@ class STFT(nn.Module):
     def inverse(self, magnitude: torch.tensor, phase: torch.tensor, eps: float = 1e-9) -> torch.tensor:
         conc = torch.cat(
             [magnitude * torch.cos(phase), magnitude * torch.sin(phase)], dim=1)
-
         inverse_transform = F.conv_transpose1d(
             conc,
             self.inverse_basis,
@@ -81,22 +79,28 @@ class STFT(nn.Module):
             padding=0)
 
         # remove window effect
-        if self.window is not None:
-            n_frames = conc.size(-1)
-            inverse_size = inverse_transform.size(-1)
-            window_filter = torch.zeros(
-                inverse_size
-            ).type_as(inverse_transform).fill_(eps)
+        n_frames = conc.size(-1)
+        inverse_size = inverse_transform.size(-1)
 
-            for idx in range(n_frames):
-                sample = idx * self.hop_length
-                window_filter[sample:min(inverse_size, sample + self.filter_length)] \
-                    += self.square_window[:max(0, min(self.filter_length, inverse_size - sample))]
+        window_filter = torch.ones(
+            1, 1, n_frames
+        ).type_as(inverse_transform)
 
-            inverse_transform /= window_filter
+        weight = self.square_window[:self.filter_length].unsqueeze(0).unsqueeze(0)
+        window_filter = F.conv_transpose1d(
+            window_filter,
+            weight,
+            stride=self.hop_length,
+            padding=0
+        )
+        indices = torch.arange(inverse_size)
+        window_filter = window_filter.squeeze() + eps
+        window_filter = window_filter[indices]
 
-            # scale by hop ratio
-            inverse_transform *= self.filter_length / self.hop_length
+        inverse_transform /= window_filter
+
+        # scale by hop ratio
+        inverse_transform *= self.filter_length / self.hop_length
 
         return inverse_transform[..., self.pad_amount:-self.pad_amount].squeeze(1)
 
@@ -204,7 +208,7 @@ class STFTTorchAudio(nn.Module):
         # match dimension
         magnitude, phase = magnitude.unsqueeze(3), phase.unsqueeze(3)
         stft = torch.cat([magnitude * torch.cos(phase), magnitude * torch.sin(phase)], dim=3)
-        return istft(
+        return torch.istft(
             stft, self.n_fft, self.hop_length, self.win_length, self.window
         )
 
