@@ -85,7 +85,7 @@ class InterfaceHifiGAN(Interface):
         mel = interface.encode(wav_tensor)
 
         # decode to wav using hifi-gan
-        pred = interface.decode(mel)
+        pred_wav = interface.decode(mel)
     """
 
     def __init__(self, model_name: str = 'hifi_gan_v1'):

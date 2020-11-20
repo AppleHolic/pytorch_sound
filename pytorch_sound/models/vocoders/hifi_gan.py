@@ -1,3 +1,8 @@
+#
+# Reference : https://github.com/jik876/hifi-gan/blob/master/models.py
+# HiFi-GAN: Generative Adversarial Networks for Efficient and High Fidelity Speech Synthesis
+# https://arxiv.org/abs/2010.05646
+#
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
