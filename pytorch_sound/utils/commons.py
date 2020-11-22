@@ -60,6 +60,7 @@ def get_loadable_checkpoint(checkpoint: Dict[str, torch.tensor]) -> Dict[str, to
     """
     new_checkpoint = {}
     for key, val in checkpoint.items():
-        new_key = key.replace('module.', '')
-        new_checkpoint[new_key] = val
+        if key.startswith('module.'):
+            key = key.replace('module.', '')
+        new_checkpoint[key] = val
     return new_checkpoint

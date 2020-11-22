@@ -288,7 +288,7 @@ class LogMelSpectrogramTorchAudio(nn.Module):
         return mel.clamp(self.min_db, self.max_db)
 
 
-class MelMasker(nn.Module):
+class SpectrogramMasker(nn.Module):
     """
     Helper class transforming wave-level mask to spectrogram-level mask
     """
