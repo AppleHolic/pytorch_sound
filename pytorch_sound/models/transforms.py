@@ -51,7 +51,7 @@ class STFT(nn.Module):
         self.register_buffer('forward_basis', forward_basis)
         self.register_buffer('inverse_basis', inverse_basis)
 
-    def transform(self, wav: torch.tensor) -> Tuple[torch.tensor, torch.tensor]:
+    def transform(self, wav: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         # reflect padding
         wav = wav.unsqueeze(1).unsqueeze(1)
         wav = F.pad(
@@ -69,7 +69,7 @@ class STFT(nn.Module):
 
         return torch.sqrt(real_part ** 2 + imag_part ** 2), torch.atan2(imag_part.data, real_part.data)
 
-    def inverse(self, magnitude: torch.tensor, phase: torch.tensor, eps: float = 1e-9) -> torch.tensor:
+    def inverse(self, magnitude: torch.Tensor, phase: torch.Tensor, eps: float = 1e-9) -> torch.Tensor:
         conc = torch.cat(
             [magnitude * torch.cos(phase), magnitude * torch.sin(phase)], dim=1)
         inverse_transform = F.conv_transpose1d(
@@ -123,10 +123,9 @@ class LogMelSpectrogram(nn.Module):
 
         # mel filter banks
         mel_filter = librosa.filters.mel(sample_rate, n_fft, mel_size, fmin=mel_min, fmax=mel_max)
-        self.register_buffer('mel_filter',
-                             torch.tensor(mel_filter, dtype=torch.float))
+        self.register_buffer('mel_filter', torch.FloatTensor(mel_filter))
 
-    def forward(self, wav: torch.tensor, log_offset: float = 1e-6) -> torch.tensor:
+    def forward(self, wav: torch.Tensor, log_offset: float = 1e-6) -> torch.Tensor:
         mag, phase = self.stft.transform(wav)
 
         # apply mel filter
@@ -150,9 +149,9 @@ class LogMelScale(nn.Module):
         # mel filter banks
         mel_filter = librosa.filters.mel(sample_rate, n_fft, mel_size, fmin=mel_min, fmax=mel_max)
         self.register_buffer('mel_filter',
-                             torch.tensor(mel_filter, dtype=torch.float))
+                             torch.Tensor(mel_filter, dtype=torch.float))
 
-    def forward(self, magnitude: torch.tensor, log_offset: float = 1e-6) -> torch.tensor:
+    def forward(self, magnitude: torch.Tensor, log_offset: float = 1e-6) -> torch.Tensor:
         # apply mel filter
         mel = torch.matmul(self.mel_filter, magnitude)
 
@@ -278,7 +277,7 @@ class LogMelSpectrogramTorchAudio(nn.Module):
                                       hop_length=hop_length, f_min=mel_min, f_max=mel_max, n_mels=mel_size,
                                       window_fn=torch.hann_window)
 
-    def forward(self, wav: torch.tensor, log_offset: float = 1e-6) -> torch.tensor:
+    def forward(self, wav: torch.Tensor, log_offset: float = 1e-6) -> torch.Tensor:
         # apply mel spectrogram
         mel = self.melfunc(wav)
 
@@ -300,7 +299,7 @@ class SpectrogramMasker(nn.Module):
             1, 1, self.win_length, stride=hop_length, padding=0, bias=False).cuda()
         torch.nn.init.constant_(self.conv.weight, 1. / self.win_length)
 
-    def forward(self, wav_mask: torch.tensor) -> torch.tensor:
+    def forward(self, wav_mask: torch.Tensor) -> torch.Tensor:
         # make mask
         with torch.no_grad():
             wav_mask = F.pad(wav_mask, [0, self.win_length // 2], value=0.)
@@ -321,7 +320,7 @@ class MelToMFCC(nn.Module):
         dct_mat = audio_func.create_dct(n_mfcc, mel_size, norm)
         self.register_buffer('dct_mat', dct_mat.transpose(0, 1))
 
-    def forward(self, mel_spec: torch.tensor) -> torch.tensor:
+    def forward(self, mel_spec: torch.Tensor) -> torch.Tensor:
         assert len(mel_spec.size()) == 3
         return torch.matmul(self.dct_mat, mel_spec)
 
@@ -343,7 +342,7 @@ class MFCC(nn.Module):
         dct_mat = audio_func.create_dct(n_mfcc, mel_size, norm)
         self.register_buffer('dct_mat', dct_mat.transpose(0, 1))
 
-    def forward(self, wav: torch.tensor) -> torch.tensor:
+    def forward(self, wav: torch.Tensor) -> torch.Tensor:
         assert len(wav.size()) == 3
         mel_spectrogram = self.mel_func(wav)
         return torch.matmul(self.dct_mat, mel_spectrogram)

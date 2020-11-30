@@ -81,7 +81,7 @@ class Trainer:
                  pretrained_path: str = None, sr: int = None, scheduler: torch.optim.lr_scheduler._LRScheduler = None):
 
         # save project info
-        self.pretrained_trained = pretrained_path
+        self.pretrained_path = pretrained_path
 
         # model
         self.model = model
@@ -344,8 +344,8 @@ class Trainer:
         log('step %d / saved model.' % step)
 
     def load_pretrained_model(self):
-        assert os.path.exists(self.pretrained_trained), 'You must define pretrained path!'
-        self.model.load_state_dict(get_loadable_checkpoint(torch.load(self.pretrained_trained)['model']))
+        assert os.path.exists(self.pretrained_path), 'You must define pretrained path!'
+        self.model.load_state_dict(get_loadable_checkpoint(torch.load(self.pretrained_path)['model']))
 
     def console_log(self, tag: str, meta: Dict[str, Any], step: int):
         # console logging

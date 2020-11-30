@@ -176,7 +176,7 @@ class SpeechDataLoader(DataLoader):
     """
 
     def __init__(self, dataset: SpeechDataset, batch_size: int, num_workers: int,
-                 n_buckets: int = 10, is_bucket: bool = True, skip_last_bucket: bool = False):
+                 n_buckets: int = 10, is_bucket: bool = True, is_shuffle: bool = False, skip_last_bucket: bool = False):
 
         batch_sampler = None
         if is_bucket:
@@ -188,7 +188,7 @@ class SpeechDataLoader(DataLoader):
                          collate_fn=self.pad_collate_fn,
                          pin_memory=True,
                          batch_size=(1 if is_bucket else batch_size),
-                         shuffle=(not is_bucket),
+                         shuffle=(not is_bucket and is_shuffle),
                          batch_sampler=batch_sampler)
 
     @staticmethod

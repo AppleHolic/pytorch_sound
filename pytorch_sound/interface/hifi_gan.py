@@ -99,6 +99,7 @@ class InterfaceHifiGAN(Interface):
         self.decoder = build_model(model_name)
         chkpt = torch.load(CHECKPOINTS[model_name])
         self.decoder.load_state_dict(chkpt['generator'])
+        self.decoder.remove_weight_norm()
 
     def encode(self, wav_tensor: torch.Tensor) -> torch.Tensor:
         assert wav_tensor.ndim == 2, '2D tensor (N, T) is needed'
