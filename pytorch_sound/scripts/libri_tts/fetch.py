@@ -17,12 +17,12 @@ from tqdm import tqdm
 # dev-clean
 # dev-other
 # test-clean
-def fetch_structure(data_dir: str, out_dir: str, target_txt: str = 'normalized', is_clean: bool = True):
+def fetch_structure(data_dir: str, out_dir: str, target_txt: str = 'normalized', is_clean: bool = False):
     # define target data
     if is_clean:
-        target_dirs = ['train-clean-360', 'dev-clean']
+        target_dirs = ['train-clean-100', 'train-clean-360', 'dev-clean']
     else:
-        target_dirs = ['train-clean-360', 'train-other-500', 'dev-clean', 'dev-other']
+        target_dirs = ['train-clean-100', 'train-clean-360', 'train-other-500', 'dev-clean', 'dev-other']
     # chk and make out dir
     out_txt_dir, out_wav_dir = os.path.join(out_dir, '{}', '{}', 'txt'), os.path.join(out_dir, '{}', '{}', 'wav')
 

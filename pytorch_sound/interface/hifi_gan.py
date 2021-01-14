@@ -88,24 +88,28 @@ class InterfaceHifiGAN(Interface):
         pred_wav = interface.decode(mel)
     """
 
-    def __init__(self, model_name: str = 'hifi_gan_v1'):
+    def __init__(self, model_name: str = 'hifi_gan_v1', chk_path: str = '', device='cpu'):
         assert model_name in ['hifi_gan_v1', 'hifi_gan_v2'], \
             'Model name {} is not valid! choose in {}'.format(model_name, str(['hifi_gan_v1', 'hifi_gan_v2']))
 
         # encoder
-        self.encoder = MelSpectrogram(**vars(AudioParameters()))
+        self.encoder = MelSpectrogram(**vars(AudioParameters())).to(device)
 
         # decoder
-        self.decoder = build_model(model_name)
-        chkpt = torch.load(CHECKPOINTS[model_name])
+        self.decoder = build_model(model_name).to(device)
+        if chk_path:
+            chkpt = torch.load(chk_path)
+        else:
+            chkpt = torch.load(CHECKPOINTS[model_name])
         self.decoder.load_state_dict(chkpt['generator'])
         self.decoder.remove_weight_norm()
 
+    @torch.no_grad()
     def encode(self, wav_tensor: torch.Tensor) -> torch.Tensor:
         assert wav_tensor.ndim == 2, '2D tensor (N, T) is needed'
         return self.encoder(wav_tensor)
 
+    @torch.no_grad()
     def decode(self, mel_tensor: torch.Tensor) -> torch.Tensor:
         assert mel_tensor.ndim == 3, '3D tensor (N, C, T) is needed'
-        with torch.no_grad():
-            return self.decoder(mel_tensor)
+        return self.decoder(mel_tensor)

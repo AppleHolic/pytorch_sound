@@ -20,6 +20,7 @@ from pytorch_sound.data.meta.libri_tts import LibriTTSMeta
 from pytorch_sound.data.meta.ljspeech import LJSpeechMeta
 from pytorch_sound.data.meta.medleydb import MedleyDBMeta
 from pytorch_sound.data.meta.musdb18 import MUSDB18Meta
+from pytorch_sound.data.meta.valenti import ValentiMeta
 from pytorch_sound.data.meta.vctk import VCTKMeta
 from pytorch_sound.data.meta.voice_bank import VoiceBankMeta
 from pytorch_sound.data.meta.dsd100 import DSD100Meta
@@ -48,9 +49,34 @@ def load_split_numpy(in_file: str, out_file: str, wav_len: int):
     # load audio file with librosa
     wav, _ = librosa.load(in_file, sr=None)
 
+    dirname = os.path.dirname(out_file)
+    if not os.path.exists(dirname):
+        os.makedirs(dirname, exist_ok=True)
+
     # save wav array
     for idx in range(0, len(wav) - wav_len, wav_len):
         np.save(out_file.replace('.npy', '.{}.npy'.format(idx)), wav[idx: idx+wav_len])
+
+
+def make_background_numpy(
+        mixture_file: str, vocal_file: str, out_file: str, wav_len: int
+    ):
+    """
+    When audio files are very big, it brings more file loading time.
+    So, convert audio files to numpy files
+    """
+    # load audio file with librosa
+    mixture_wav, _ = librosa.load(mixture_file, sr=None)
+    vocal_wav, _ = librosa.load(vocal_file, sr=None)
+    background_wav = mixture_wav - vocal_wav
+
+    dirname = os.path.dirname(out_file)
+    if not os.path.exists(dirname):
+        os.makedirs(dirname, exist_ok=True)
+
+    # save wav array
+    for idx in range(0, len(background_wav) - wav_len, wav_len):
+        np.save(out_file.replace('.npy', '.{}.npy'.format(idx)), background_wav[idx: idx+wav_len])
 
 
 def resample(in_file: str, out_file: str, out_sr: int):
@@ -204,7 +230,7 @@ class Processor:
         )
 
     @staticmethod
-    def __get_wave_file_list(in_dir: str, out_dir: str) -> Tuple[List[str], List[str]]:
+    def __get_wave_file_list(in_dir: str, out_dir: str, ext: str = 'wav') -> Tuple[List[str], List[str]]:
         """
         lookup wave files and match file path on target directory
         :param in_dir: base directory of data files
@@ -214,7 +240,7 @@ class Processor:
 
         # loop up wave files
         print('Lookup file list...')
-        in_wav_list = glob.glob(os.path.join(in_dir, '**', '*.wav'), recursive=True)
+        in_wav_list = glob.glob(os.path.join(in_dir, '**', '*.'+ext), recursive=True)
 
         # parse directories
         dirs = list(map(lambda x: get_sub_dir(in_dir, x), in_wav_list))
@@ -281,11 +307,41 @@ class Processor:
 
         # copy texts
         print('Copy text files...')
-        __class__.__copy_txt(in_dir, out_dir)
+        __class__.copy_txt(in_dir, out_dir)
 
         # make meta files
         meta_dir = os.path.join(out_dir, 'meta')
         meta = VoiceBankMeta(meta_dir)
+        meta.make_meta(out_dir, min_wav_rate, max_wav_rate, 0)
+        print('All processes are finished.')
+
+    @staticmethod
+    def valenti(in_dir: str, out_dir: str, min_wav_rate: int = 0,
+                   max_wav_rate: int = 9999, sample_rate: int = 22050):
+        """
+        Pre-process from downloaded valenti files to loadable files and make meta files
+        :param in_dir: base directory of data files
+        :param out_dir: target directory
+        :param min_wav_rate: minimum wave duration
+        :param max_wav_rate: maximum wave duration
+        :param sample_rate: target audio sample rate
+        """
+        # mkdir
+        os.makedirs(out_dir, exist_ok=True)
+
+        # preprocess audios
+        print('Start to process audio files!')
+        __class__.preprocess_audio(in_dir, out_dir, sample_rate=sample_rate)
+
+        print('Finishing...')
+
+        # copy texts
+        print('Copy text files...')
+        __class__.copy_txt(in_dir, out_dir)
+
+        # make meta files
+        meta_dir = os.path.join(out_dir, 'meta')
+        meta = ValentiMeta(meta_dir)
         meta.make_meta(out_dir, min_wav_rate, max_wav_rate, 0)
         print('All processes are finished.')
 
@@ -305,15 +361,44 @@ class Processor:
         in_dir = os.path.join(in_dir, 'train')
 
         # preprocess audios
-        __class__.preprocess_audio(in_dir, out_dir)
+        Processor.preprocess_audio(in_dir, out_dir)
 
         # copy texts
-        __class__.__copy_txt(in_dir, out_dir)
+        Processor.copy_txt(in_dir, out_dir)
 
         # make meta files
         meta_dir = os.path.join(out_dir, 'meta')
         meta = LibriTTSMeta(meta_dir)
         meta.make_meta(out_dir, settings.MIN_WAV_RATE, settings.MAX_WAV_RATE, settings.MIN_TXT_RATE)
+
+    @staticmethod
+    def libri_tts_fetch_speaker(meta_dir: str, speaker_file: str):
+        print('Load files ...')
+        # look file path
+        meta_files = [os.path.join(meta_dir, p) for p in LibriTTSMeta.frame_file_names]
+
+        # load speaker info
+        new_columns = ['READER', 'GENDER', 'SUBSET', 'NAME']
+        speaker_df = pd.read_csv(speaker_file, sep='\t', header=0, index_col='READER', names=new_columns)
+        print(speaker_df)
+
+        # make fetched meta
+        new_meta_paths = [path.replace('.json', '_add.json') for path in meta_files]
+
+        print('Load and save additional info ...')
+        for file_path, out_path in zip(meta_files, new_meta_paths):
+            # load json
+            df = pd.read_json(file_path)
+            additional_info = [speaker_df.loc[int(os.path.basename(p).split('_')[0])]
+                               for p in tqdm(df['audio_filename'].values, desc=f'{out_path} is processing ...')]
+
+            # make and save
+            for idx, col in enumerate(new_columns[1:]):
+                new_col_info = [item.values[idx] for item in additional_info]
+                df[col] = new_col_info
+
+            df.to_json(out_path)
+        print('Finish !')
 
     @staticmethod
     def vctk(in_dir: str, out_dir: str, sample_rate: int = 22050):
@@ -397,18 +482,28 @@ class Processor:
         meta.make_meta(out_wav_list, txt_info)
 
     @staticmethod
-    def dsd100(data_dir: str, wav_subset_len: int = 44100 * 10):
+    def dsd100(data_dir: str, out_dir: str, wav_subset_len: int = 44100 * 10):
         """
         DSD100 is different to others, it just make meta file to load directly original ones.
         :param data_dir: Data root directory
         """
         print('Lookup files ...')
-        mixture_list = glob.glob(os.path.join(data_dir, 'Mixtures', '**', '**', 'mixture.wav'))
-        out_mixture_list = [file_path.replace('.wav', '.npy') for file_path in mixture_list]
+        mixture_list = sorted(glob.glob(os.path.join(data_dir, 'Mixtures', '**', '**', 'mixture.wav')))
+        vocals_list = sorted(glob.glob(os.path.join(data_dir, 'Sources', '**', '**', 'vocals.wav')))
 
-        # It only extract vocals. If you wanna use other source, override it.
-        vocals_list = glob.glob(os.path.join(data_dir, 'Sources', '**', '**', 'vocals.wav'))
-        out_vocals_list = [file_path.replace('.wav', '.npy') for file_path in vocals_list]
+        out_mixture_list = []
+        out_vocals_list = []
+        out_backround_list = []
+        for mixture_path, vocal_path in zip(mixture_list, vocals_list):
+            subdir = os.path.basename(os.path.dirname(mixture_path))
+
+            mixture_path = os.path.join(out_dir, subdir, 'mixture.npy')
+            vocal_path = os.path.join(out_dir, subdir, 'vocals.npy')
+            background_path = os.path.join(out_dir, subdir, 'background.npy')
+
+            out_mixture_list.append(mixture_path)
+            out_vocals_list.append(vocal_path)
+            out_backround_list.append(background_path)
 
         # save as numpy file
         print('Save as numpy files..')
@@ -423,9 +518,16 @@ class Processor:
             (*args, wav_subset_len) for args in tqdm(zip(vocals_list, out_vocals_list))
         )
 
-        meta_dir = os.path.join(data_dir, 'meta')
+        print('- Make Background Files')
+        Parallel(n_jobs=__class__.num_workers)(
+            delayed(make_background_numpy)
+            (*args, wav_subset_len) for args in tqdm(zip(mixture_list, vocals_list, out_backround_list))
+        )
+
+        # Make back
+        meta_dir = os.path.join(out_dir, 'meta')
         meta = DSD100Meta(meta_dir)
-        meta.make_meta(data_dir)
+        meta.make_meta(out_mixture_list, out_vocals_list, out_backround_list)
 
     @staticmethod
     def musdb18(data_dir: str, wav_subset_len: int = 44100 * 10):

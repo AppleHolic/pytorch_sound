@@ -16,14 +16,12 @@ class STFT(nn.Module):
     refer on : https://github.com/pseeth/torch-stft/blob/master/torch_stft/stft.py
     """
 
-    def __init__(self, filter_length: int = 1024, hop_length: int = 512, win_length: int = None,
-                 window: str = 'hann'):
+    def __init__(self, filter_length: int = 1024, hop_length: int = 512, win_length: int = None, window: str = 'hann'):
         super().__init__()
         self.filter_length = filter_length
         self.hop_length = hop_length
         self.win_length = win_length if win_length else filter_length
         self.window = window
-        self.forward_transform = None
         self.pad_amount = self.filter_length // 2
 
         # make fft window
@@ -42,12 +40,13 @@ class STFT(nn.Module):
         ])
 
         # make forward & inverse basis
+        self.register_buffer('square_window', fft_window ** 2)
+
         forward_basis = torch.FloatTensor(fourier_basis[:, np.newaxis, :]) * fft_window
         inverse_basis = torch.FloatTensor(
             np.linalg.pinv(self.filter_length / self.hop_length * fourier_basis).T[:, np.newaxis, :]
         ) * fft_window
-
-        self.register_buffer('square_window', fft_window ** 2)
+        # torch.pinverse has a bug, so at this time, it is separated into two parts..
         self.register_buffer('forward_basis', forward_basis)
         self.register_buffer('inverse_basis', inverse_basis)
 
@@ -69,17 +68,17 @@ class STFT(nn.Module):
 
         return torch.sqrt(real_part ** 2 + imag_part ** 2), torch.atan2(imag_part.data, real_part.data)
 
-    def inverse(self, magnitude: torch.Tensor, phase: torch.Tensor, eps: float = 1e-9) -> torch.Tensor:
-        conc = torch.cat(
-            [magnitude * torch.cos(phase), magnitude * torch.sin(phase)], dim=1)
+    def inverse(self, magnitude: torch.Tensor, phase: torch.Tensor, eps: float = 1e-9, complex=None) -> torch.Tensor:
+        if complex is None:
+            complex = torch.cat([magnitude * torch.cos(phase), magnitude * torch.sin(phase)], dim=1)
         inverse_transform = F.conv_transpose1d(
-            conc,
+            complex,
             self.inverse_basis,
             stride=self.hop_length,
             padding=0)
 
         # remove window effect
-        n_frames = conc.size(-1)
+        n_frames = complex.size(-1)
         inverse_size = inverse_transform.size(-1)
 
         window_filter = torch.ones(
@@ -105,25 +104,133 @@ class STFT(nn.Module):
         return inverse_transform[..., self.pad_amount:-self.pad_amount].squeeze(1)
 
 
+class LearnableSTFT(nn.Module):
+    """
+    Re-construct stft for calculating backward operation
+    refer on : https://github.com/pseeth/torch-stft/blob/master/torch_stft/stft.py
+    *experimental*
+    TODO: There is a bug on Pytorch's pinv. implement it later.
+    """
+
+    def __init__(self, filter_length: int = 1024, hop_length: int = 512, win_length: int = None, window: str = 'hann',
+                 trainable_inverse: bool = True, trainable_forward: bool = True):
+        super().__init__()
+        self.filter_length = filter_length
+        self.hop_length = hop_length
+        self.win_length = win_length if win_length else filter_length
+        self.window = window
+        self.pad_amount = self.filter_length // 2
+
+        # make fft window
+        assert (filter_length >= self.win_length)
+        # get window and zero center pad it to filter_length
+        fft_window = get_window(window, self.win_length, fftbins=True)
+        fft_window = pad_center(fft_window, filter_length)
+        fft_window = torch.from_numpy(fft_window).float()
+        self.register_buffer('fft_window', fft_window)
+
+        # calculate fourer_basis
+        cut_off = int((self.filter_length / 2 + 1))
+        fourier_basis = np.fft.fft(np.eye(self.filter_length))
+        fourier_basis = np.vstack([
+            np.real(fourier_basis[:cut_off, :]),
+            np.imag(fourier_basis[:cut_off, :])
+        ])
+
+        forward_basis = torch.FloatTensor(fourier_basis[:, np.newaxis, :])
+        inverse_basis = torch.FloatTensor(
+            np.linalg.pinv(self.filter_length / self.hop_length * fourier_basis).T[:, np.newaxis, :]
+        )
+        # torch.pinverse has a bug, so at this time, it is separated into two parts..
+        if trainable_forward:
+            self.forward_basis = nn.Parameter(forward_basis)
+        else:
+            self.register_buffer('forward_basis', forward_basis)
+
+        if trainable_inverse:
+            self.inverse_basis = nn.Parameter(inverse_basis)
+        else:
+            self.register_buffer('inverse_basis', inverse_basis)
+
+    def transform(self, wav: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        # reflect padding
+        wav = wav.unsqueeze(1).unsqueeze(1)
+        wav = F.pad(
+            wav,
+            (self.pad_amount, self.pad_amount, 0, 0),
+            mode='reflect'
+        ).squeeze(1)
+
+        # conv
+        forward_trans = F.conv1d(
+            wav, self.forward_basis * self.fft_window,
+            stride=self.hop_length, padding=0
+        )
+        real_part, imag_part = forward_trans.chunk(2, 1)
+
+        return torch.sqrt(real_part ** 2 + imag_part ** 2), torch.atan2(imag_part.data, real_part.data)
+
+    def inverse(self, magnitude: torch.Tensor, phase: torch.Tensor, eps: float = 1e-9) -> torch.Tensor:
+        conc = torch.cat(
+            [magnitude * torch.cos(phase), magnitude * torch.sin(phase)], dim=1)
+        inverse_transform = F.conv_transpose1d(
+            conc,
+            self.inverse_basis * self.fft_window,
+            stride=self.hop_length,
+            padding=0)
+
+        # remove window effect
+        n_frames = conc.size(-1)
+        inverse_size = inverse_transform.size(-1)
+
+        window_filter = torch.ones(
+            1, 1, n_frames
+        ).type_as(inverse_transform)
+
+        weight = self.fft_window[:self.filter_length].unsqueeze(0).unsqueeze(0) ** 2
+        window_filter = F.conv_transpose1d(
+            window_filter,
+            weight,
+            stride=self.hop_length,
+            padding=0
+        )
+        indices = torch.arange(inverse_size)
+        window_filter = window_filter.squeeze() + eps
+        window_filter = window_filter[indices]
+
+        inverse_transform /= window_filter
+
+        # scale by hop ratio
+        inverse_transform *= self.filter_length / self.hop_length
+
+        return inverse_transform[..., self.pad_amount:-self.pad_amount].squeeze(1)
+
+
 class LogMelSpectrogram(nn.Module):
     """
     Mel spectrogram module with above STFT class
     """
 
     def __init__(self, sample_rate: int, mel_size: int, n_fft: int, win_length: int,
-                 hop_length: int, min_db: float, max_db: float,
+                 hop_length: int, min_db: float = None, max_db: float = None,
                  mel_min: float = 0., mel_max: float = None):
         super().__init__()
         self.mel_size = mel_size
-
-        self.min_db = np.log(np.power(10, min_db / 10))
-        self.max_db = np.log(np.power(10, max_db / 10))
 
         self.stft = STFT(filter_length=win_length, hop_length=hop_length)
 
         # mel filter banks
         mel_filter = librosa.filters.mel(sample_rate, n_fft, mel_size, fmin=mel_min, fmax=mel_max)
         self.register_buffer('mel_filter', torch.FloatTensor(mel_filter))
+
+        if min_db:
+            self.min_db = np.log(np.power(10, min_db / 10))
+        else:
+            self.min_db = None
+        if max_db:
+            self.max_db = np.log(np.power(10, max_db / 10))
+        else:
+            self.max_db = None
 
     def forward(self, wav: torch.Tensor, log_offset: float = 1e-6) -> torch.Tensor:
         mag, phase = self.stft.transform(wav)
@@ -134,7 +241,11 @@ class LogMelSpectrogram(nn.Module):
         # to log-space
         mel = torch.log(mel + log_offset)
 
-        return mel.clamp(self.min_db, self.max_db)
+        if self.min_db:
+            mel = mel.clamp_min(self.min_db)
+        if self.max_db:
+            mel = mel.clamp_max(self.max_db)
+        return mel
 
 
 class LogMelScale(nn.Module):

@@ -223,6 +223,7 @@ class Trainer:
     def validate(self, step: int):
 
         loss = 0.
+        count = 0
         stat = defaultdict(float)
 
         for i in range(self.valid_max_step):
@@ -234,13 +235,13 @@ class Trainer:
                 batch_loss, meta = self.forward(*to_device(next(self.valid_dataset)), is_logging=log_flag)
                 loss += batch_loss
 
-            # update stat
-            for key, (value, log_type) in meta.items():
-                if log_type == LogType.SCALAR:
-                    stat[key] += value
+            if log_flag:
+                # update stat
+                for key, (value, log_type) in meta.items():
+                    if log_type == LogType.SCALAR:
+                        stat[key] += value
 
-            # console logging of this step
-            if (i + 1) % self.log_interval == 0:
+                count += 1
                 self.console_log('valid', meta, i + 1)
 
         meta_non_scalar = {
@@ -256,7 +257,10 @@ class Trainer:
         # averaging stat
         loss /= self.valid_max_step
         for key in stat.keys():
-            stat[key] = stat[key] / self.valid_max_step
+            if key == 'loss':
+                continue
+            stat[key] = stat[key] / count
+        stat['loss'] = loss
 
         # update best valid loss
         if loss < self.best_valid_loss:

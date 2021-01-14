@@ -98,8 +98,8 @@ class LibriTTSMeta(MetaFrame):
 def get_datasets(meta_dir: str, batch_size: int, num_workers: int,
                  fix_len: int = 0, skip_audio: bool = False,
                  audio_mask: bool = False, skip_last_bucket: bool = True,
+                 n_buckets: int = 10,
                  extra_features: List[Tuple[str, Callable]] = None) -> Tuple[SpeechDataLoader, SpeechDataLoader]:
-    # TODO: update this function in general
     assert os.path.isdir(meta_dir), '{} is not valid directory path!'
 
     train_file, valid_file = LibriTTSMeta.frame_file_names[1:]
@@ -115,7 +115,7 @@ def get_datasets(meta_dir: str, batch_size: int, num_workers: int,
                                   extra_features=extra_features)
 
     # create data loader
-    train_loader = SpeechDataLoader(train_dataset, batch_size=batch_size,
+    train_loader = SpeechDataLoader(train_dataset, batch_size=batch_size, n_buckets=n_buckets,
                                     num_workers=num_workers, skip_last_bucket=skip_last_bucket)
     valid_loader = SpeechDataLoader(valid_dataset, batch_size=batch_size, is_bucket=False, num_workers=num_workers)
 
