@@ -36,7 +36,10 @@ def norm_mel(x: TensorOrArr) -> TensorOrArr:
     :return: normalized mel spectrogram
     """
     mel_min, mel_max = db2log(settings.MIN_DB), db2log(settings.MAX_DB)
-    x = x.clamp(mel_min, mel_max)
+    if type(x) == np.ndarray:
+        x = x.clip(mel_min, mel_max)
+    else:
+        x = x.clamp(mel_min, mel_max)
     return (x - mel_min) / (mel_max - mel_min) * 2 - 1
 
 

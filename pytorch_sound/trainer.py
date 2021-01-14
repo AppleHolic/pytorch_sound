@@ -81,7 +81,7 @@ class Trainer:
                  pretrained_path: str = None, sr: int = None, scheduler: torch.optim.lr_scheduler._LRScheduler = None):
 
         # save project info
-        self.pretrained_trained = pretrained_path
+        self.pretrained_path = pretrained_path
 
         # model
         self.model = model
@@ -223,6 +223,7 @@ class Trainer:
     def validate(self, step: int):
 
         loss = 0.
+        count = 0
         stat = defaultdict(float)
 
         for i in range(self.valid_max_step):
@@ -234,13 +235,13 @@ class Trainer:
                 batch_loss, meta = self.forward(*to_device(next(self.valid_dataset)), is_logging=log_flag)
                 loss += batch_loss
 
-            # update stat
-            for key, (value, log_type) in meta.items():
-                if log_type == LogType.SCALAR:
-                    stat[key] += value
+            if log_flag:
+                # update stat
+                for key, (value, log_type) in meta.items():
+                    if log_type == LogType.SCALAR:
+                        stat[key] += value
 
-            # console logging of this step
-            if (i + 1) % self.log_interval == 0:
+                count += 1
                 self.console_log('valid', meta, i + 1)
 
         meta_non_scalar = {
@@ -256,7 +257,10 @@ class Trainer:
         # averaging stat
         loss /= self.valid_max_step
         for key in stat.keys():
-            stat[key] = stat[key] / self.valid_max_step
+            if key == 'loss':
+                continue
+            stat[key] = stat[key] / count
+        stat['loss'] = loss
 
         # update best valid loss
         if loss < self.best_valid_loss:
@@ -344,8 +348,8 @@ class Trainer:
         log('step %d / saved model.' % step)
 
     def load_pretrained_model(self):
-        assert os.path.exists(self.pretrained_trained), 'You must define pretrained path!'
-        self.model.load_state_dict(get_loadable_checkpoint(torch.load(self.pretrained_trained)['model']))
+        assert os.path.exists(self.pretrained_path), 'You must define pretrained path!'
+        self.model.load_state_dict(get_loadable_checkpoint(torch.load(self.pretrained_path)['model']))
 
     def console_log(self, tag: str, meta: Dict[str, Any], step: int):
         # console logging

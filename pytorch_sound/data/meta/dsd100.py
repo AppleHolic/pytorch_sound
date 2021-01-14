@@ -24,7 +24,10 @@ class DSD100Meta(MetaFrame):
 
     @property
     def columns(self) -> List[Tuple[MetaType, str]]:
-        return [(MetaType.AUDIO, 'mixture_filename'), (MetaType.AUDIO, 'voice_filename')]
+        return [
+            (MetaType.AUDIO, 'mixture_filename'), (MetaType.AUDIO, 'voice_filename'),
+            (MetaType.AUDIO, 'background_filename')
+        ]
 
     @property
     def meta(self) -> pd.DataFrame:
@@ -33,21 +36,16 @@ class DSD100Meta(MetaFrame):
     def __len__(self):
         return len(self._meta)
 
-    def make_meta(self, root_dir: str):
-        # Use all audio files
-        # directory names
-        print('Lookup files ...')
-        mixture_list = glob.glob(os.path.join(root_dir, 'Mixtures', '**', '**', 'mixture.*.npy'))
-
-        # It only extract vocals. If you wanna use other source, override it.
-        vocals_list = glob.glob(os.path.join(root_dir, 'Sources', '**', '**', 'vocals.*.npy'))
-
-        # make meta dict
-        print('Make meta information ...')
+    def make_meta(self, mixtures, vocals, backgrounds):
+        # lookup subset files and concatenate all
+        mixtures = [f for parent in mixtures for f in glob.glob(parent.replace('.npy', '.*.npy'))]
+        vocals = [f for parent in vocals for f in glob.glob(parent.replace('.npy', '.*.npy'))]
+        backgrounds = [f for parent in backgrounds for f in glob.glob(parent.replace('.npy', '.*.npy'))]
 
         # setup meta
-        self._meta['mixture_filename'] = sorted(mixture_list)
-        self._meta['voice_filename'] = sorted(vocals_list)
+        self._meta['mixture_filename'] = sorted(mixtures)
+        self._meta['voice_filename'] = sorted(vocals)
+        self._meta['background_filename'] = sorted(backgrounds)
 
         # split train / val
         print('Make train / val meta')

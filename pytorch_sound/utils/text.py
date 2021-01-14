@@ -1,3 +1,5 @@
+import unicodedata
+
 import numpy as np
 from typing import List
 
@@ -69,7 +71,7 @@ def kor_p2i(phonemes: str) -> List[int]:
     :return: indices of korean characters
     """
     # eng to index
-    return [settings.KOR_TO_IDX[p] for p in phonemes.split() if p in settings.KOR_TO_IDX]
+    return [settings.KOR_PHN_TO_IDX[p] for p in phonemes.split() if p in settings.KOR_PHN_TO_IDX]
 
 
 def kor_i2p(idx: List[int]) -> List[str]:
@@ -79,13 +81,49 @@ def kor_i2p(idx: List[int]) -> List[str]:
     :return: korean characters
     """
     # index to eng
-    return [settings.IDX_TO_KOR[i] for i in idx]
+    return [settings.IDX_TO_KOR_PHN[i] for i in idx if i < len(settings.KOR_PHN_TO_IDX)]
 
 
-def pad_kor_eos(x: np.array) -> np.array:
+def pad_korp_eos(x: np.array) -> np.array:
     """
     Pad to end of the given indices array.
     :param x: indices array
     :return: padded array
     """
-    return np.array(list(x) + [settings.KOR_VOCA_SIZE])
+    return np.array(list(x) + [settings.KOR_PHN_SIZE])
+
+
+def kor_g2i(graphemes: str) -> List[int]:
+    """
+    Make indices from korean to its
+    :param sentence: korean graphemes
+    :return: indices of korean characters
+    """
+    return [settings.KOR_GRP_TO_IDX[p] for p in graphemes if p in settings.KOR_GRP_TO_IDX]
+
+
+def kor_i2g(idx: List[int]) -> List[str]:
+    """
+    Make korean graphemes from indices
+    :param idx: indices
+    :return: korean characters
+    """
+    # index to eng
+    return [settings.IDX_TO_KOR_GRP[i] for i in idx if i < len(settings.IDX_TO_KOR_GRP)]
+
+
+def pad_korg_eos(x: np.array) -> np.array:
+    """
+    Pad to end of the given indices array.
+    :param x: indices array
+    :return: padded array
+    """
+    return np.array(list(x) + [settings.KOR_GRP_SIZE])
+
+
+def kor_text2grp(text: str) -> List[str]:
+    return unicodedata.normalize('NFD', text)
+
+
+def kor_grp2text(grp: str) -> List[str]:
+    return unicodedata.normalize('NFC', grp)
