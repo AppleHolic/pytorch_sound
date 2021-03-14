@@ -68,17 +68,16 @@ class STFT(nn.Module):
 
         return torch.sqrt(real_part ** 2 + imag_part ** 2), torch.atan2(imag_part.data, real_part.data)
 
-    def inverse(self, magnitude: torch.Tensor, phase: torch.Tensor, eps: float = 1e-9, complex=None) -> torch.Tensor:
-        if complex is None:
-            complex = torch.cat([magnitude * torch.cos(phase), magnitude * torch.sin(phase)], dim=1)
+    def inverse(self, magnitude: torch.Tensor, phase: torch.Tensor, eps: float = 1e-9) -> torch.Tensor:
+        comp = torch.cat([magnitude * torch.cos(phase), magnitude * torch.sin(phase)], dim=1)
         inverse_transform = F.conv_transpose1d(
-            complex,
+            comp,
             self.inverse_basis,
             stride=self.hop_length,
             padding=0)
 
         # remove window effect
-        n_frames = complex.size(-1)
+        n_frames = comp.size(-1)
         inverse_size = inverse_transform.size(-1)
 
         window_filter = torch.ones(
@@ -92,9 +91,7 @@ class STFT(nn.Module):
             stride=self.hop_length,
             padding=0
         )
-        indices = torch.arange(inverse_size)
-        window_filter = window_filter.squeeze() + eps
-        window_filter = window_filter[indices]
+        window_filter = window_filter.squeeze()[:inverse_size] + eps
 
         inverse_transform /= window_filter
 
@@ -222,7 +219,6 @@ class LogMelSpectrogram(nn.Module):
         # mel filter banks
         mel_filter = librosa.filters.mel(sample_rate, n_fft, mel_size, fmin=mel_min, fmax=mel_max)
         self.register_buffer('mel_filter', torch.FloatTensor(mel_filter))
-
         if min_db:
             self.min_db = np.log(np.power(10, min_db / 10))
         else:

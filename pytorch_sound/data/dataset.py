@@ -176,8 +176,8 @@ class SpeechDataLoader(DataLoader):
     """
 
     def __init__(self, dataset: SpeechDataset, batch_size: int, num_workers: int,
-                 n_buckets: int = 10, is_bucket: bool = True, is_shuffle: bool = False, skip_last_bucket: bool = False,
-                 pin_memory: bool = True):
+                 n_buckets: int = 10, is_bucket: bool = False, is_shuffle: bool = False, skip_last_bucket: bool = False,
+                 pin_memory: bool = True, drop_last: bool = False):
 
         batch_sampler = None
         if is_bucket:
@@ -190,7 +190,8 @@ class SpeechDataLoader(DataLoader):
                          pin_memory=pin_memory,
                          batch_size=(1 if is_bucket else batch_size),
                          shuffle=(not is_bucket and is_shuffle),
-                         batch_sampler=batch_sampler)
+                         batch_sampler=batch_sampler,
+                         drop_last=drop_last)
 
     @staticmethod
     def pad_collate_fn(batch: List[Any]) -> torch.tensor:
