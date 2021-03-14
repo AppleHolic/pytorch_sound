@@ -78,7 +78,8 @@ class Trainer:
                  max_step: int, valid_max_step: int, save_interval: int, log_interval: int,
                  save_dir: str, save_prefix: str = 'save',
                  grad_clip: float = 0.0, grad_norm: float = 0.0,
-                 pretrained_path: str = None, sr: int = None, scheduler: torch.optim.lr_scheduler._LRScheduler = None):
+                 pretrained_path: str = None, sr: int = None, scheduler: torch.optim.lr_scheduler._LRScheduler = None,
+                 seed: int = None):
 
         # save project info
         self.pretrained_path = pretrained_path
@@ -120,15 +121,17 @@ class Trainer:
         self.writer = SummaryWriter(log_dir=self.log_dir, flush_secs=10)
 
         # load previous checkpoint
-        # set seed
-        self.seed = None
         self.load()
+
+        # set seed
+        self.seed = seed
 
         if not self.seed:
             self.seed = np.random.randint(np.iinfo(np.int32).max)
-            np.random.seed(self.seed)
-            torch.manual_seed(self.seed)
-            torch.cuda.manual_seed(self.seed)
+
+        np.random.seed(self.seed)
+        torch.manual_seed(self.seed)
+        torch.cuda.manual_seed(self.seed)
 
         # load pretrained model
         if self.step == 0 and pretrained_path:
@@ -227,39 +230,24 @@ class Trainer:
         stat = defaultdict(float)
 
         for i in range(self.valid_max_step):
-            # flag for logging
-            log_flag = i % self.log_interval == 0 or i == self.valid_max_step - 1
-
             # forward model
             with torch.no_grad():
-                batch_loss, meta = self.forward(*to_device(next(self.valid_dataset)), is_logging=log_flag)
+                batch_loss, meta = self.forward(*to_device(next(self.valid_dataset)), is_logging=True)
                 loss += batch_loss
 
-            if log_flag:
-                # update stat
-                for key, (value, log_type) in meta.items():
-                    if log_type == LogType.SCALAR:
-                        stat[key] += value
+            for key, (value, log_type) in meta.items():
+                if log_type == LogType.SCALAR:
+                    stat[key] += value
 
-                count += 1
+            if i % self.log_interval == 0 or i == self.valid_max_step - 1:
                 self.console_log('valid', meta, i + 1)
-
-        meta_non_scalar = {
-            key: (value, log_type) for key, (value, log_type) in meta.items()
-            if not log_type == LogType.SCALAR
-        }
-
-        try:
-            self.tensorboard_log('valid', meta_non_scalar, step)
-        except OverflowError:
-            pass
 
         # averaging stat
         loss /= self.valid_max_step
         for key in stat.keys():
             if key == 'loss':
                 continue
-            stat[key] = stat[key] / count
+            stat[key] = stat[key] / self.valid_max_step
         stat['loss'] = loss
 
         # update best valid loss
