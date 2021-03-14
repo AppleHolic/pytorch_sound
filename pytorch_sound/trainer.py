@@ -226,6 +226,7 @@ class Trainer:
     def validate(self, step: int):
 
         loss = 0.
+        count = 0
         stat = defaultdict(float)
 
         for i in range(self.valid_max_step):

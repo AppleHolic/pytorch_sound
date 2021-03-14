@@ -219,7 +219,6 @@ class LogMelSpectrogram(nn.Module):
         # mel filter banks
         mel_filter = librosa.filters.mel(sample_rate, n_fft, mel_size, fmin=mel_min, fmax=mel_max)
         self.register_buffer('mel_filter', torch.FloatTensor(mel_filter))
-
         if min_db:
             self.min_db = np.log(np.power(10, min_db / 10))
         else:
