@@ -21,7 +21,8 @@ class AudioParameters:
 CHKPT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'assets', 'vocoders')
 CHECKPOINTS = {
     'hifi_gan_v1': os.path.join(CHKPT_DIR, 'hifi_gan_v1.pt'),
-    'hifi_gan_v2': os.path.join(CHKPT_DIR, 'hifi_gan_v2.pt')
+    'hifi_gan_v2': os.path.join(CHKPT_DIR, 'hifi_gan_v2.pt'),
+    'hifi_gan_v3': os.path.join(CHKPT_DIR, 'hifi_gan_v3.pt')
 }
 
 
@@ -65,7 +66,7 @@ class MelSpectrogram(nn.Module):
 class InterfaceHifiGAN(Interface):
     """
     An interface between wave and feature based speech generations models with Hifi-GAN
-    You can select a model_name in ['hifi_gan_v1', 'hifi_gan_v2'].
+    You can select a model_name in ['hifi_gan_v1', 'hifi_gan_v2', 'hifi_gan_v3'].
       hifi_gan_v1 = higher memory and higher quality
       hifi_gan_v2 = lower memory and faster speed
 
@@ -89,8 +90,9 @@ class InterfaceHifiGAN(Interface):
     """
 
     def __init__(self, model_name: str = 'hifi_gan_v1', chk_path: str = '', device='cpu'):
-        assert model_name in ['hifi_gan_v1', 'hifi_gan_v2'], \
-            'Model name {} is not valid! choose in {}'.format(model_name, str(['hifi_gan_v1', 'hifi_gan_v2']))
+        assert model_name in ['hifi_gan_v1', 'hifi_gan_v2', 'hifi_gan_v3'], \
+            'Model name {} is not valid! choose in {}'.format(
+                model_name, str(['hifi_gan_v1', 'hifi_gan_v2', 'hifi_gan_v3']))
 
         # encoder
         self.encoder = MelSpectrogram(**vars(AudioParameters())).to(device)

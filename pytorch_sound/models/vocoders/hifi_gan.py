@@ -29,9 +29,6 @@ def get_padding(kernel_size, dilation=1):
     return int((kernel_size*dilation - dilation)/2)
 
 
-LRELU_SLOPE = 0.1
-
-
 class ResBlock1(torch.nn.Module):
     def __init__(self, h, channels, kernel_size=3, dilation=(1, 3, 5)):
         super(ResBlock1, self).__init__()
@@ -58,9 +55,9 @@ class ResBlock1(torch.nn.Module):
 
     def forward(self, x):
         for c1, c2 in zip(self.convs1, self.convs2):
-            xt = F.leaky_relu(x, LRELU_SLOPE)
+            xt = F.leaky_relu(x, 0.1)
             xt = c1(xt)
-            xt = F.leaky_relu(xt, LRELU_SLOPE)
+            xt = F.leaky_relu(xt, 0.1)
             xt = c2(xt)
             x = xt + x
         return x
@@ -86,7 +83,7 @@ class ResBlock2(torch.nn.Module):
 
     def forward(self, x):
         for c in self.convs:
-            xt = F.leaky_relu(x, LRELU_SLOPE)
+            xt = F.leaky_relu(x, 0.1)
             xt = c(xt)
             x = xt + x
         return x
@@ -124,15 +121,15 @@ class Generator(torch.nn.Module):
 
     def forward(self, x):
         x = self.conv_pre(x)
-        for i in range(self.num_upsamples):
-            x = F.leaky_relu(x, LRELU_SLOPE)
-            x = self.ups[i](x)
+        for i, upblock in enumerate(self.ups):
+            x = F.leaky_relu(x, 0.1)
+            x = upblock(x)
             xs = None
-            for j in range(self.num_kernels):
+            for block in self.resblocks[i*self.num_kernels:(i+1)*self.num_kernels]:
                 if xs is None:
-                    xs = self.resblocks[i*self.num_kernels+j](x)
+                    xs = block(x)
                 else:
-                    xs += self.resblocks[i*self.num_kernels+j](x)
+                    xs += block(x)
             x = xs / self.num_kernels
         x = F.leaky_relu(x)
         x = self.conv_post(x)
@@ -190,6 +187,22 @@ def hifi_gan_v2():
                 'resblock_kernel_sizes': [3, 7, 11],
                 'resblock_dilation_sizes': [[1, 3, 5], [1, 3, 5], [1, 3, 5]],
                 'resblock_initial_channel': 64
+            }
+        )
+    }
+
+
+@register_model_architecture('hifi_gan', 'hifi_gan_v3')
+def hifi_gan_v3():
+    return {
+        'h': Namespace(
+            **{
+                'resblock': '2',
+                'upsample_rates': [8, 8, 4],
+                'upsample_kernel_sizes': [16, 16, 8],
+                'upsample_initial_channel': 256,
+                'resblock_kernel_sizes': [3, 5, 7],
+                'resblock_dilation_sizes': [[1, 2], [2, 6], [3, 12]]
             }
         )
     }
