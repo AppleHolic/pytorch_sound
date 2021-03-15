@@ -9,12 +9,12 @@ def get_requirements(filename: str = 'requirements.txt') -> List[str]:
 
 setup(
     name='pytorch_sound',
-    version='0.0.6',
+    version='0.0.7',
     author='ILJI CHOI',
     author_email='choiilji@gmail.com',
     description='Sound DL Package Project with Pytorch',
     keywords='sound',
     packages=find_packages(),
     install_requires=get_requirements(),
-    python_requires='>=3.7'
+    python_requires='>=3.6'
 )
